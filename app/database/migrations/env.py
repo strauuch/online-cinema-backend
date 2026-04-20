@@ -10,7 +10,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from database.models import user  # noqa: F401
+from database.models import accounts  # noqa: F401
 from database.models.base import Base
 from database.engine import sync_postgresql_engine
 

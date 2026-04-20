@@ -1,5 +1,6 @@
 import sys
 from os import path
+
 sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 
 from logging.config import fileConfig
@@ -11,7 +12,7 @@ from alembic import context
 
 from database.models import user  # noqa: F401
 from database.models.base import Base
-from database.session import sync_postgresql_engine
+from database.engine import sync_postgresql_engine
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

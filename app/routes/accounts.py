@@ -34,7 +34,7 @@ from schemas.accounts import (
     UserLoginResponseSchema,
     UserLoginRequestSchema,
     TokenRefreshRequestSchema,
-    TokenRefreshResponseSchema,
+    TokenRefreshResponseSchema, PasswordChangeRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 
@@ -236,6 +236,77 @@ async def activate_account(
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
+
+
+@router.post(
+    "/password-change/",
+    response_model=MessageResponseSchema,
+    summary="Change User Password",
+    description="Change the password for an authenticated user by verifying the old password.",
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {
+            "description": "Bad Request - Invalid old password or weak new password.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid old password."}
+                }
+            },
+        },
+        404: {
+            "description": "Not Found - User not found.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "User not found."}
+                }
+            },
+        },
+    },
+)
+async def change_password(
+    data: PasswordChangeRequestSchema,
+    email: str,
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponseSchema:
+    """
+    Endpoint to change the user's password.
+
+    The new password is automatically validated by the schema
+    using accounts_validators.validate_password_strength.
+    """
+    stmt = select(UserModel).filter_by(email=email)
+    result = await db.execute(stmt)
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+
+    if not user.verify_password(data.old_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid old password.",
+        )
+
+    if data.old_password == data.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from the old one.",
+        )
+
+    try:
+        user.password = data.new_password
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while updating the password.",
+        )
+
+    return MessageResponseSchema(message="Password changed successfully.")
 
 
 @router.post(

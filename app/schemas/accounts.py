@@ -16,7 +16,7 @@ class BaseEmailPasswordSchema(BaseModel):
 
     @field_validator("password")
     @classmethod
-    def validate_password(cls, value):
+    def validate_password(cls, value: str) -> str:
         return accounts_validators.validate_password_strength(value)
 
 
@@ -30,6 +30,16 @@ class PasswordResetRequestSchema(BaseModel):
 
 class PasswordResetCompleteRequestSchema(BaseEmailPasswordSchema):
     token: str
+
+
+class PasswordChangeRequestSchema(BaseModel):
+    old_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return accounts_validators.validate_password_strength(value)
 
 
 class UserLoginRequestSchema(BaseEmailPasswordSchema):

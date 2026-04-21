@@ -34,7 +34,8 @@ from schemas.accounts import (
     UserLoginResponseSchema,
     UserLoginRequestSchema,
     TokenRefreshRequestSchema,
-    TokenRefreshResponseSchema, PasswordChangeRequestSchema,
+    TokenRefreshResponseSchema,
+    PasswordChangeRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 
@@ -248,18 +249,12 @@ async def activate_account(
         400: {
             "description": "Bad Request - Invalid old password or weak new password.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Invalid old password."}
-                }
+                "application/json": {"example": {"detail": "Invalid old password."}}
             },
         },
         404: {
             "description": "Not Found - User not found.",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "User not found."}
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "User not found."}}},
         },
     },
 )

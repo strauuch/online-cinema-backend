@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import cast
 
 from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +23,7 @@ from database.models.accounts import (
     PasswordResetTokenModel,
     RefreshTokenModel,
 )
-from exceptions.security import BaseSecurityError
+from exceptions.security import BaseSecurityError, InvalidTokenError, TokenExpiredError
 from notifications import EmailSenderInterface
 from schemas.accounts import (
     UserRegistrationRequestSchema,
@@ -40,6 +41,74 @@ from schemas.accounts import (
 from security.interfaces import JWTAuthManagerInterface
 
 router = APIRouter()
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/accounts/login/")
+
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+    db: AsyncSession = Depends(get_db),
+) -> UserModel:
+    """
+    Dependency to retrieve the currently authenticated user from a JWT access token.
+
+    Extracts the token from the Authorization header, decodes it to retrieve the user ID,
+    and fetches the corresponding user from the database along with their group information.
+    Ensures that the user exists and their account is active.
+
+    Args:
+        token (str): The JWT access token provided in the 'Authorization' header.
+        jwt_manager (JWTAuthManagerInterface): The manager responsible for decoding JWT tokens.
+        db (AsyncSession): The asynchronous database session for user retrieval.
+
+    Returns:
+        UserModel: The authenticated user instance including related group data.
+
+    Raises:
+        HTTPException:
+            - 401 Unauthorized if the token is expired, invalid, or missing the user ID.
+            - 401 Unauthorized if the user associated with the token no longer exists.
+            - 403 Forbidden if the user account is present but not activated.
+    """
+    try:
+        payload = jwt_manager.decode_access_token(token)
+    except TokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired."
+        )
+    except (InvalidTokenError, Exception):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token."
+        )
+
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload."
+        )
+
+    stmt = (
+        select(UserModel)
+        .where(UserModel.id == user_id)
+        .options(joinedload(UserModel.group))
+    )
+    user = await db.scalar(stmt)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found.",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is not activated.",
+        )
+
+    return user
 
 
 @router.post(

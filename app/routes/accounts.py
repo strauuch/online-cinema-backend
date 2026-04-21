@@ -321,16 +321,12 @@ async def activate_account(
                 "application/json": {"example": {"detail": "Invalid old password."}}
             },
         },
-        404: {
-            "description": "Not Found - User not found.",
-            "content": {"application/json": {"example": {"detail": "User not found."}}},
-        },
     },
 )
 async def change_password(
     data: PasswordChangeRequestSchema,
-    email: str,
     db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
 ) -> MessageResponseSchema:
     """
     Endpoint to change the user's password.
@@ -338,17 +334,7 @@ async def change_password(
     The new password is automatically validated by the schema
     using accounts_validators.validate_password_strength.
     """
-    stmt = select(UserModel).filter_by(email=email)
-    result = await db.execute(stmt)
-    user = result.scalars().first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found.",
-        )
-
-    if not user.verify_password(data.old_password):
+    if not current_user.verify_password(data.old_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid old password.",
@@ -361,7 +347,7 @@ async def change_password(
         )
 
     try:
-        user.password = data.new_password
+        current_user.password = data.new_password
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
@@ -673,6 +659,7 @@ async def login_user(
 async def logout_user(
     token_data: TokenRefreshRequestSchema,
     db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
 ) -> MessageResponseSchema:
     """
     Endpoint for user logout.
@@ -683,6 +670,7 @@ async def logout_user(
     Args:
         token_data (TokenRefreshRequestSchema): The request body containing the refresh token.
         db (AsyncSession): The asynchronous database session.
+        current_user (UserModel): The user is retrieved from the Access Token.
 
     Returns:
         MessageResponseSchema: A success message confirming logout.
@@ -692,14 +680,14 @@ async def logout_user(
             - 401 Unauthorized if the refresh token does not exist in the database.
             - 500 Internal Server Error if a database error occurs.
     """
-    stmt = select(RefreshTokenModel).filter_by(token=token_data.refresh_token)
+    stmt = select(RefreshTokenModel).filter_by(token=token_data.refresh_token, user_id=current_user.id)
     result = await db.execute(stmt)
     refresh_token_record = result.scalars().first()
 
     if not refresh_token_record:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token not found.",
+            detail="Refresh token not found or doesn't belong to this user.",
         )
 
     try:

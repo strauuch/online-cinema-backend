@@ -511,6 +511,76 @@ async def login_user(
 
 
 @router.post(
+    "/logout/",
+    response_model=MessageResponseSchema,
+    summary="User Logout",
+    description="Revoke the user's refresh token, effectively logging them out.",
+    status_code=status.HTTP_200_OK,
+    responses={
+        401: {
+            "description": "Unauthorized - Invalid refresh token.",
+            "content": {
+                "application/json": {"example": {"detail": "Refresh token not found."}}
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred during logout.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while processing the request."
+                    }
+                }
+            },
+        },
+    },
+)
+async def logout_user(
+    token_data: TokenRefreshRequestSchema,
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponseSchema:
+    """
+    Endpoint for user logout.
+
+    Deletes the provided refresh token from the database. Once deleted,
+    the token can no longer be used to obtain new access tokens.
+
+    Args:
+        token_data (TokenRefreshRequestSchema): The request body containing the refresh token.
+        db (AsyncSession): The asynchronous database session.
+
+    Returns:
+        MessageResponseSchema: A success message confirming logout.
+
+    Raises:
+        HTTPException:
+            - 401 Unauthorized if the refresh token does not exist in the database.
+            - 500 Internal Server Error if a database error occurs.
+    """
+    stmt = select(RefreshTokenModel).filter_by(token=token_data.refresh_token)
+    result = await db.execute(stmt)
+    refresh_token_record = result.scalars().first()
+
+    if not refresh_token_record:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token not found.",
+        )
+
+    try:
+        await db.delete(refresh_token_record)
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while processing the request.",
+        )
+
+    return MessageResponseSchema(message="Successfully logged out.")
+
+
+@router.post(
     "/refresh/",
     response_model=TokenRefreshResponseSchema,
     summary="Refresh Access Token",

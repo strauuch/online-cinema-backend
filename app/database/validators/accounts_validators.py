@@ -1,6 +1,10 @@
 import re
+from datetime import date
+from fastapi import UploadFile
 
 import email_validator
+
+from database.models.accounts import GenderEnum
 
 
 def validate_password_strength(password: str) -> str:
@@ -29,3 +33,42 @@ def validate_email(user_email: str) -> str:
         raise ValueError(str(error))
     else:
         return email
+
+
+def validate_name(name: str):
+    if re.search(r"^[A-Za-z]*$", name) is None:
+        raise ValueError(f"{name} contains non-english letters")
+
+
+def validate_image(avatar: UploadFile) -> None:
+    max_file_size = 1 * 1024 * 1024  # 1MB
+
+    content = avatar.file.read()
+    if len(content) > max_file_size:
+        avatar.file.seek(0)
+        raise ValueError("Image size exceeds 1 MB")
+
+    allowed_types = ["image/jpeg", "image/png", "image/jpg"]
+    if avatar.content_type not in allowed_types:
+        avatar.file.seek(0)
+        raise ValueError(
+            f"Unsupported file type: {avatar.content_type}. Use JPG or PNG."
+        )
+
+    avatar.file.seek(0)
+
+
+def validate_gender(gender: str) -> None:
+    if gender not in GenderEnum.__members__.values():
+        raise ValueError(
+            f"Gender must be one of: {', '.join(g.value for g in GenderEnum)}"
+        )
+
+
+def validate_birth_date(birth_date: date) -> None:
+    if birth_date.year < 1900:
+        raise ValueError("Invalid birth date - year must be greater than 1900.")
+
+    age = (date.today() - birth_date).days // 365
+    if age < 18:
+        raise ValueError("You must be at least 18 years old to register.")

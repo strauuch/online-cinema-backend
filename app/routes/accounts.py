@@ -13,6 +13,7 @@ from core.dependencies import (
     get_settings,
     get_accounts_email_notificator,
     get_current_user,
+    get_s3_storage_client,
 )
 from database import get_db
 from database.models.accounts import (
@@ -22,8 +23,10 @@ from database.models.accounts import (
     ActivationTokenModel,
     PasswordResetTokenModel,
     RefreshTokenModel,
+    UserProfileModel,
 )
 from exceptions.security import BaseSecurityError, InvalidTokenError, TokenExpiredError
+from exceptions.storage import S3FileUploadError, S3ConnectionError, S3PermissionError
 from notifications import EmailSenderInterface
 from schemas.accounts import (
     UserRegistrationRequestSchema,
@@ -37,8 +40,11 @@ from schemas.accounts import (
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema,
     PasswordChangeRequestSchema,
+    ProfileResponseSchema,
+    ProfileCreateRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
+from storages.interfaces import S3StorageInterface
 
 router = APIRouter()
 
@@ -717,3 +723,77 @@ async def refresh_access_token(
     new_access_token = jwt_manager.create_access_token({"user_id": user_id})
 
     return TokenRefreshResponseSchema(access_token=new_access_token)
+
+
+@router.post(
+    "/me/profile/",
+    response_model=ProfileResponseSchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create User Profile",
+    description="Create a personal profile with an avatar. Only for authenticated users without an existing profile.",
+)
+async def create_profile(
+    profile_data: ProfileCreateRequestSchema = Depends(
+        ProfileCreateRequestSchema.as_form
+    ),
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    s3_client: S3StorageInterface = Depends(get_s3_storage_client),
+) -> ProfileResponseSchema:
+    """
+    Endpoint to create a profile for the current authenticated user.
+    """
+
+    await db.refresh(current_user, ["profile"])
+
+    if current_user.profile:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Profile already exists.",
+        )
+
+    avatar_file = profile_data.avatar
+    avatar_path = f"avatars/user_{current_user.id}/{avatar_file.filename}"
+
+    try:
+        file_content = await avatar_file.read()
+
+        await s3_client.upload_file(file_name=avatar_path, file_data=file_content)
+
+    except S3FileUploadError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Storage error: {e}"
+        )
+    except (S3ConnectionError, S3PermissionError):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Storage is temporarily unavailable. Please try again later."
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while processing the avatar."
+        )
+
+    profile_dict = profile_data.model_dump(exclude={"avatar"})
+    new_profile = UserProfileModel(
+        **profile_dict, avatar=avatar_path, user_id=current_user.id
+    )
+
+    try:
+        db.add(new_profile)
+        await db.commit()
+        await db.refresh(new_profile)
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error during profile creation.",
+        )
+
+    avatar_url = await s3_client.get_file_url(new_profile.avatar)
+
+    response_data = ProfileResponseSchema.model_validate(new_profile)
+    response_data.avatar = avatar_url
+    return response_data

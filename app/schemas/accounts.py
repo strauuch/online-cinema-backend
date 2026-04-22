@@ -1,6 +1,10 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from datetime import date
 
-from database import accounts_validators
+from fastapi import UploadFile, Form, File
+from pydantic import BaseModel, field_validator, ConfigDict, EmailStr
+
+from database.models.accounts import GenderEnum
+from database.validators import accounts_validators as validators
 
 
 class BaseEmailPasswordSchema(BaseModel):
@@ -17,7 +21,7 @@ class BaseEmailPasswordSchema(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, value: str) -> str:
-        return accounts_validators.validate_password_strength(value)
+        return validators.validate_password_strength(value)
 
 
 class UserRegistrationRequestSchema(BaseEmailPasswordSchema):
@@ -39,7 +43,7 @@ class PasswordChangeRequestSchema(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, value: str) -> str:
-        return accounts_validators.validate_password_strength(value)
+        return validators.validate_password_strength(value)
 
 
 class UserLoginRequestSchema(BaseEmailPasswordSchema):
@@ -75,3 +79,62 @@ class TokenRefreshRequestSchema(BaseModel):
 class TokenRefreshResponseSchema(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class ProfileCreateRequestSchema(BaseModel):
+    first_name: str
+    last_name: str
+    gender: GenderEnum
+    date_of_birth: date
+    info: str
+    avatar: UploadFile
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_names(cls, v: str) -> str:
+        validators.validate_name(v)
+        return v.lower().strip()
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_birth_date(cls, v: date) -> date:
+        validators.validate_birth_date(v)
+        return v
+
+    @field_validator("avatar")
+    @classmethod
+    def validate_avatar_file(cls, v: UploadFile) -> UploadFile:
+        validators.validate_image(v)
+        return v
+
+    @classmethod
+    def as_form(
+        cls,
+        first_name: str = Form(...),
+        last_name: str = Form(...),
+        gender: GenderEnum = Form(...),
+        date_of_birth: date = Form(...),
+        info: str = Form(...),
+        avatar: UploadFile = File(...),
+    ) -> "ProfileCreateRequestSchema":
+        return cls(
+            first_name=first_name,
+            last_name=last_name,
+            gender=gender,
+            date_of_birth=date_of_birth,
+            info=info,
+            avatar=avatar,
+        )
+
+
+class ProfileResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
+    avatar: str

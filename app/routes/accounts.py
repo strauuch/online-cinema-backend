@@ -41,7 +41,7 @@ from schemas.accounts import (
     TokenRefreshResponseSchema,
     PasswordChangeRequestSchema,
     ProfileResponseSchema,
-    ProfileCreateRequestSchema,
+    ProfileUpdateRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 from storages.interfaces import S3StorageInterface
@@ -235,6 +235,11 @@ async def activate_account(
 
     user.is_active = True
     await db.delete(token_record)
+    await db.flush()
+
+    new_profile = UserProfileModel(user_id=user.id)
+    db.add(new_profile)
+
     await db.commit()
 
     login_link = "http://127.0.0.1/accounts/login/"
@@ -725,75 +730,57 @@ async def refresh_access_token(
     return TokenRefreshResponseSchema(access_token=new_access_token)
 
 
-@router.post(
+@router.patch(
     "/me/profile/",
     response_model=ProfileResponseSchema,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create User Profile",
-    description="Create a personal profile with an avatar. Only for authenticated users without an existing profile.",
+    status_code=status.HTTP_200_OK,
+    summary="Update User Profile",
+    description="Update a personal profile with an avatar. Only for authenticated users without an existing profile.",
 )
 async def create_profile(
-    profile_data: ProfileCreateRequestSchema = Depends(
-        ProfileCreateRequestSchema.as_form
+    profile_data: ProfileUpdateRequestSchema = Depends(
+        ProfileUpdateRequestSchema.as_form
     ),
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
 ) -> ProfileResponseSchema:
     """
-    Endpoint to create a profile for the current authenticated user.
+    Endpoint to update a profile for the current authenticated user.
     """
 
     await db.refresh(current_user, ["profile"])
+    profile = current_user.profile
 
-    if current_user.profile:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Profile already exists.",
-        )
+    if not profile:
+        profile = UserProfileModel(user_id=current_user.id)
+        db.add(profile)
 
-    avatar_file = profile_data.avatar
-    avatar_path = f"avatars/user_{current_user.id}/{avatar_file.filename}"
+    if profile_data.avatar and profile_data.avatar.filename:
+        avatar_path = f"avatars/user_{current_user.id}/{profile_data.avatar.filename}"
+        try:
+            content = await profile_data.avatar.read()
+            await s3_client.upload_file(file_name=avatar_path, file_data=content)
+            profile.avatar = avatar_path
+        except Exception:
+            raise HTTPException(status_code=502, detail="Failed to upload avatar.")
 
-    try:
-        file_content = await avatar_file.read()
+    data_to_update = profile_data.model_dump(exclude_unset=True, exclude={"avatar"})
 
-        await s3_client.upload_file(file_name=avatar_path, file_data=file_content)
-
-    except S3FileUploadError as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Storage error: {e}"
-        )
-    except (S3ConnectionError, S3PermissionError):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Storage is temporarily unavailable. Please try again later."
-        )
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred while processing the avatar."
-        )
-
-    profile_dict = profile_data.model_dump(exclude={"avatar"})
-    new_profile = UserProfileModel(
-        **profile_dict, avatar=avatar_path, user_id=current_user.id
-    )
+    for key, value in data_to_update.items():
+        setattr(profile, key, value)
 
     try:
-        db.add(new_profile)
         await db.commit()
-        await db.refresh(new_profile)
+        await db.refresh(profile)
     except SQLAlchemyError:
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error during profile creation.",
-        )
+        raise HTTPException(status_code=500, detail="Database error.")
 
-    avatar_url = await s3_client.get_file_url(new_profile.avatar)
+    avatar_url = ""
+    if profile.avatar:
+        avatar_url = await s3_client.get_file_url(profile.avatar)
 
-    response_data = ProfileResponseSchema.model_validate(new_profile)
-    response_data.avatar = avatar_url
-    return response_data
+    result = ProfileResponseSchema.model_validate(profile)
+    result.avatar = avatar_url
+    return result

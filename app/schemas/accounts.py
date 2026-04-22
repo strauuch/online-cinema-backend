@@ -142,3 +142,11 @@ class ProfileResponseSchema(BaseModel):
     date_of_birth: date
     info: str
     avatar: str
+
+class UserMeResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: EmailStr
+    is_active: bool
+    profile: ProfileResponseSchema | None = None

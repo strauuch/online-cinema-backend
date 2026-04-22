@@ -40,7 +40,7 @@ from schemas.accounts import (
     TokenRefreshResponseSchema,
     PasswordChangeRequestSchema,
     ProfileResponseSchema,
-    ProfileUpdateRequestSchema,
+    ProfileUpdateRequestSchema, UserMeResponseSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 from storages.interfaces import S3StorageInterface
@@ -727,6 +727,31 @@ async def refresh_access_token(
     new_access_token = jwt_manager.create_access_token({"user_id": user_id})
 
     return TokenRefreshResponseSchema(access_token=new_access_token)
+
+
+@router.get(
+    "/me/",
+    response_model=UserMeResponseSchema,
+    summary="Get current user info",
+)
+async def get_me(
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    s3_client: S3StorageInterface = Depends(get_s3_storage_client),
+) -> UserMeResponseSchema:
+
+    await db.refresh(current_user, ["profile"])
+
+    avatar_url = ""
+    if current_user.profile and current_user.profile.avatar:
+        avatar_url = await s3_client.get_file_url(current_user.profile.avatar)
+
+    response = UserMeResponseSchema.model_validate(current_user)
+
+    if response.profile:
+        response.profile.avatar = avatar_url
+
+    return response
 
 
 @router.patch(

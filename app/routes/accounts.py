@@ -25,8 +25,7 @@ from database.models.accounts import (
     RefreshTokenModel,
     UserProfileModel,
 )
-from exceptions.security import BaseSecurityError, InvalidTokenError, TokenExpiredError
-from exceptions.storage import S3FileUploadError, S3ConnectionError, S3PermissionError
+from exceptions.security import BaseSecurityError
 from notifications import EmailSenderInterface
 from schemas.accounts import (
     UserRegistrationRequestSchema,

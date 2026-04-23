@@ -67,6 +67,7 @@ class UserActivationRequestSchema(BaseModel):
     email: EmailStr
     token: str
 
+
 class UserActivationResendRequestSchema(BaseModel):
     email: EmailStr
 
@@ -137,14 +138,14 @@ class ProfileUpdateRequestSchema(BaseModel):
 class ProfileResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    user_id: int
-    first_name: str
-    last_name: str
-    gender: str
-    date_of_birth: date
-    info: str
-    avatar: str
+    id: int | None = None
+    user_id: int | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    gender: str | None = None
+    date_of_birth: date | None = None
+    info: str | None = None
+    avatar: str | None = None
 
 
 class UserMeResponseSchema(BaseModel):

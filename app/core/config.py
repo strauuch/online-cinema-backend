@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     JWT_SIGNING_ALGORITHM: str = "HS256"
     LOGIN_TIME_DAYS: int = 7
 
+    # Celery & Redis
+    CELERY_BROKER_URL: str = "redis://redis:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://redis:6379/0"
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

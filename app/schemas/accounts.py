@@ -1,9 +1,9 @@
 from datetime import date
 
 from fastapi import UploadFile, Form, File
-from pydantic import BaseModel, field_validator, ConfigDict, EmailStr
+from pydantic import BaseModel, field_validator, ConfigDict, EmailStr, AliasPath, Field
 
-from database.models.accounts import GenderEnum
+from database.models.accounts import GenderEnum, UserGroupEnum
 from database.validators import accounts_validators as validators
 
 
@@ -143,6 +143,7 @@ class ProfileResponseSchema(BaseModel):
     info: str
     avatar: str
 
+
 class UserMeResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -150,3 +151,28 @@ class UserMeResponseSchema(BaseModel):
     email: EmailStr
     is_active: bool
     profile: ProfileResponseSchema | None = None
+
+
+class AdminUserListResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: EmailStr
+    is_active: bool
+    group_name: UserGroupEnum = Field(validation_alias=AliasPath("group", "name"))
+
+
+class AdminUserDetailResponseSchema(AdminUserListResponseSchema):
+    profile: ProfileResponseSchema | None = None
+
+
+class AdminUserUpdateRequestSchema(BaseModel):
+    group_id: int | None = None
+    is_active: bool | None = None
+
+
+class AdminUserUpdateResponseSchema(AdminUserUpdateRequestSchema):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: EmailStr

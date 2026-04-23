@@ -14,6 +14,7 @@ from core.dependencies import (
     get_accounts_email_notificator,
     get_current_user,
     get_s3_storage_client,
+    get_current_admin_user,
 )
 from database import get_db
 from database.models.accounts import (
@@ -40,7 +41,12 @@ from schemas.accounts import (
     TokenRefreshResponseSchema,
     PasswordChangeRequestSchema,
     ProfileResponseSchema,
-    ProfileUpdateRequestSchema, UserMeResponseSchema,
+    ProfileUpdateRequestSchema,
+    UserMeResponseSchema,
+    AdminUserListResponseSchema,
+    AdminUserUpdateResponseSchema,
+    AdminUserUpdateRequestSchema,
+    AdminUserDetailResponseSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 from storages.interfaces import S3StorageInterface
@@ -82,23 +88,6 @@ async def register_user(
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
-
-    Registers a new user, hashes their password, and assigns them to the default user group.
-    If a user with the same email already exists, an HTTP 409 error is raised.
-    In case of any unexpected issues during the creation process, an HTTP 500 error is returned.
-
-    Args:
-        user_data (UserRegistrationRequestSchema): The registration details including email and password.
-        db (AsyncSession): The asynchronous database session.
-        email_sender (EmailSenderInterface): The asynchronous email sender.
-
-    Returns:
-        UserRegistrationResponseSchema: The newly created user's details.
-
-    Raises:
-        HTTPException:
-            - 409 Conflict if a user with the same email exists.
-            - 500 Internal Server Error if an error occurs during user creation.
     """
     stmt = select(UserModel).where(UserModel.email == user_data.email)
     result = await db.execute(stmt)
@@ -180,24 +169,6 @@ async def activate_account(
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
-
-    This endpoint verifies the activation token for a user by checking that the token record exists
-    and that it has not expired. If the token is valid and the user's account is not yet active,
-    the user's account is activated and the activation token is deleted. If the token is invalid, expired,
-    or if the account is already active, an HTTP 400 error is raised.
-
-    Args:
-        activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
-        db (AsyncSession): The asynchronous database session.
-        email_sender (EmailSenderInterface): The asynchronous email sender.
-
-    Returns:
-        MessageResponseSchema: A response message confirming successful activation.
-
-    Raises:
-        HTTPException:
-            - 400 Bad Request if the activation token is invalid or expired.
-            - 400 Bad Request if the user account is already active.
     """
     stmt = (
         select(ActivationTokenModel)
@@ -318,17 +289,6 @@ async def request_password_reset_token(
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
-
-    If the user exists and is active, invalidates any existing password reset tokens and generates a new one.
-    Always responds with a success message to avoid leaking user information.
-
-    Args:
-        data (PasswordResetRequestSchema): The request data containing the user's email.
-        db (AsyncSession): The asynchronous database session.
-        email_sender (EmailSenderInterface): The asynchronous email sender.
-
-    Returns:
-        MessageResponseSchema: A success message indicating that instructions will be sent.
     """
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
@@ -406,23 +366,6 @@ async def reset_password(
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
-
-    Validates the token and updates the user's password if the token is valid and not expired.
-    Deletes the token after a successful password reset.
-
-    Args:
-        data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
-         token, and new password.
-        db (AsyncSession): The asynchronous database session.
-        email_sender (EmailSenderInterface): The asynchronous email sender.
-
-    Returns:
-        MessageResponseSchema: A response message indicating a successful password reset.
-
-    Raises:
-        HTTPException:
-            - 400 Bad Request if the email or token is invalid, or the token has expired.
-            - 500 Internal Server Error if an error occurs during the password reset process.
     """
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
@@ -513,24 +456,6 @@ async def login_user(
 ) -> UserLoginResponseSchema:
     """
     Endpoint for user login.
-
-    Authenticates a user using their email and password.
-    If authentication is successful, creates a new refresh token and returns both access and refresh tokens.
-
-    Args:
-        login_data (UserLoginRequestSchema): The login credentials.
-        db (AsyncSession): The asynchronous database session.
-        settings (BaseAppSettings): The application settings.
-        jwt_manager (JWTAuthManagerInterface): The JWT authentication manager.
-
-    Returns:
-        UserLoginResponseSchema: A response containing the access and refresh tokens.
-
-    Raises:
-        HTTPException:
-            - 401 Unauthorized if the email or password is invalid.
-            - 403 Forbidden if the user account is not activated.
-            - 500 Internal Server Error if an error occurs during token creation.
     """
     stmt = select(UserModel).filter_by(email=login_data.email)
     result = await db.execute(stmt)
@@ -605,22 +530,6 @@ async def logout_user(
 ) -> MessageResponseSchema:
     """
     Endpoint for user logout.
-
-    Deletes the provided refresh token from the database. Once deleted,
-    the token can no longer be used to obtain new access tokens.
-
-    Args:
-        token_data (TokenRefreshRequestSchema): The request body containing the refresh token.
-        db (AsyncSession): The asynchronous database session.
-        current_user (UserModel): The user is retrieved from the Access Token.
-
-    Returns:
-        MessageResponseSchema: A success message confirming logout.
-
-    Raises:
-        HTTPException:
-            - 401 Unauthorized if the refresh token does not exist in the database.
-            - 500 Internal Server Error if a database error occurs.
     """
     stmt = select(RefreshTokenModel).filter_by(
         token=token_data.refresh_token, user_id=current_user.id
@@ -679,23 +588,6 @@ async def refresh_access_token(
 ) -> TokenRefreshResponseSchema:
     """
     Endpoint to refresh an access token.
-
-    Validates the provided refresh token, extracts the user ID from it, and issues
-    a new access token. If the token is invalid or expired, an error is returned.
-
-    Args:
-        token_data (TokenRefreshRequestSchema): Contains the refresh token.
-        db (AsyncSession): The asynchronous database session.
-        jwt_manager (JWTAuthManagerInterface): JWT authentication manager.
-
-    Returns:
-        TokenRefreshResponseSchema: A new access token.
-
-    Raises:
-        HTTPException:
-            - 400 Bad Request if the token is invalid or expired.
-            - 401 Unauthorized if the refresh token is not found.
-            - 404 Not Found if the user associated with the token does not exist.
     """
     try:
         decoded_token = jwt_manager.decode_refresh_token(token_data.refresh_token)
@@ -787,7 +679,10 @@ async def update_profile(
             await s3_client.upload_file(file_name=avatar_path, file_data=content)
             profile.avatar = avatar_path
         except Exception:
-            raise HTTPException(status_code=502, detail="Failed to upload avatar.")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to upload avatar.",
+            )
 
     data_to_update = profile_data.model_dump(exclude_unset=True, exclude={"avatar"})
 
@@ -799,7 +694,9 @@ async def update_profile(
         await db.refresh(profile)
     except SQLAlchemyError:
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Database error.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error."
+        )
 
     avatar_url = ""
     if profile.avatar:
@@ -808,3 +705,90 @@ async def update_profile(
     result = ProfileResponseSchema.model_validate(profile)
     result.avatar = avatar_url
     return result
+
+
+# =============================================================================
+# ADMIN ROUTES
+# =============================================================================
+
+
+@router.get(
+    "/admin/users/",
+    response_model=list[AdminUserListResponseSchema],
+    summary="Admin: List all users",
+)
+async def list_users(
+    limit: int = 10,
+    offset: int = 0,
+    current_user: UserModel = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        select(UserModel)
+        .options(joinedload(UserModel.group))
+        .limit(limit)
+        .offset(offset)
+        .order_by(UserModel.id)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+@router.get(
+    "/admin/users/{user_id}/",
+    response_model=AdminUserDetailResponseSchema,
+    summary="Admin: Get user details",
+)
+async def get_user(
+    user_id: int,
+    current_user: UserModel = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        select(UserModel)
+        .options(joinedload(UserModel.group), joinedload(UserModel.profile))
+        .where(UserModel.id == user_id)
+    )
+
+    result = await db.execute(stmt)
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    return AdminUserDetailResponseSchema.model_validate(user)
+
+
+@router.patch(
+    "/admin/users/{user_id}/",
+    response_model=AdminUserUpdateResponseSchema,
+    summary="Admin: Update user status or group",
+)
+async def admin_update_user(
+    user_id: int,
+    data: AdminUserUpdateRequestSchema,
+    current_user: UserModel = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await db.get(UserModel, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(user, key, value)
+
+    try:
+        await db.commit()
+        await db.refresh(user)
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
+        )
+
+    return AdminUserUpdateResponseSchema.model_validate(user)

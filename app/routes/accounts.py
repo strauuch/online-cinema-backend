@@ -761,7 +761,7 @@ async def get_me(
     summary="Update User Profile",
     description="Update a personal profile with an avatar. Only for authenticated users without an existing profile.",
 )
-async def create_profile(
+async def update_profile(
     profile_data: ProfileUpdateRequestSchema = Depends(
         ProfileUpdateRequestSchema.as_form
     ),

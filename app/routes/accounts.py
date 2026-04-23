@@ -46,7 +46,8 @@ from schemas.accounts import (
     AdminUserListResponseSchema,
     AdminUserUpdateResponseSchema,
     AdminUserUpdateRequestSchema,
-    AdminUserDetailResponseSchema, UserActivationResendRequestSchema,
+    AdminUserDetailResponseSchema,
+    UserActivationResendRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 from storages.interfaces import S3StorageInterface
@@ -130,7 +131,9 @@ async def register_user(
         ) from e
     else:
 
-        await email_sender.send_activation_email(new_user.email, settings.activation_link)
+        await email_sender.send_activation_email(
+            new_user.email, settings.activation_link
+        )
 
         return UserRegistrationResponseSchema.model_validate(new_user)
 
@@ -230,13 +233,19 @@ async def activate_account(
         400: {
             "description": "Bad Request - User account is already active.",
             "content": {
-                "application/json": {"example": {"detail": "User account is already active."}}
+                "application/json": {
+                    "example": {"detail": "User account is already active."}
+                }
             },
         },
         500: {
             "description": "Internal Server Error - Database error.",
             "content": {
-                "application/json": {"example": {"detail": "An error occurred during token regeneration."}}
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred during token regeneration."
+                    }
+                }
             },
         },
     },
@@ -473,7 +482,9 @@ async def reset_password(
             detail="An error occurred while resetting the password.",
         )
 
-    await email_sender.send_password_reset_complete_email(str(data.email), settings.login_link)
+    await email_sender.send_password_reset_complete_email(
+        str(data.email), settings.login_link
+    )
 
     return MessageResponseSchema(message="Password reset successfully.")
 
@@ -535,13 +546,19 @@ async def login_user(
         )
 
     if not user.is_active:
-        stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
+        stmt = select(ActivationTokenModel).where(
+            ActivationTokenModel.user_id == user.id
+        )
         result = await db.execute(stmt)
         token_record = result.scalars().first()
 
         now = datetime.now(timezone.utc)
 
-        if not token_record or cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc) < now:
+        if (
+            not token_record
+            or cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc)
+            < now
+        ):
             try:
                 if token_record:
                     await db.delete(token_record)
@@ -550,14 +567,16 @@ async def login_user(
                 db.add(new_token)
                 await db.commit()
 
-                await email_sender.send_activation_email(user.email, settings.activation_link)
+                await email_sender.send_activation_email(
+                    user.email, settings.activation_link
+                )
 
                 detail_msg = "Account not activated. A new activation link has been sent to your email."
             except SQLAlchemyError:
                 await db.rollback()
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Database error while regenerating token."
+                    detail="Database error while regenerating token.",
                 )
         else:
             detail_msg = "Account not activated. Please check your email for the activation link."
@@ -878,7 +897,11 @@ async def admin_update_user(
 
     try:
         await db.commit()
-        stmt = select(UserModel).options(joinedload(UserModel.group)).where(UserModel.id == user.id)
+        stmt = (
+            select(UserModel)
+            .options(joinedload(UserModel.group))
+            .where(UserModel.id == user.id)
+        )
         result = await db.execute(stmt)
         user = result.scalar_one()
     except SQLAlchemyError:

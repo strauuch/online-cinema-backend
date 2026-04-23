@@ -3,29 +3,72 @@ services:
     image: postgres:16-alpine
     container_name: postgres_cinema
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
-      POSTGRES_DB: ${POSTGRES_DB:-cinema_db}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cinema
+    ports:
+      - "6379:6379"
 
   app:
     build: .
     container_name: cinema_backend
     depends_on:
-      - postgres_cinema
+      postgres_cinema:
+        condition: service_healthy
+      redis:
+        condition: service_started
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app/app
     ports:
       - "8000:8000"
     volumes:
       - .:/app
     command: >
-      sh -c "sleep 3 &&
-             alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      sh -c "alembic upgrade head &&
+             python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  celery_worker:
+    build: .
+    container_name: cinema_worker
+    depends_on:
+      - redis
+      - postgres_cinema
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app/app
+    volumes:
+      - .:/app
+    command: celery -A app.worker.celery_app worker --loglevel=info
+
+  celery_beat:
+    build: .
+    container_name: cinema_beat
+    depends_on:
+      - redis
+      - postgres_cinema
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app/app
+    volumes:
+      - .:/app
+    command: celery -A app.worker.celery_app beat --loglevel=info
 
 volumes:
   pg_data:

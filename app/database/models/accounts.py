@@ -1,4 +1,3 @@
-import enum
 from datetime import datetime, date, timedelta, timezone
 from typing import List, Optional
 
@@ -17,20 +16,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from database import Base
+from database.models.enums import UserGroupEnum, GenderEnum
 from database.validators import accounts_validators as validators
 from security.passwords import hash_password, verify_password
 from security.utils import generate_secure_token
-
-
-class UserGroupEnum(str, enum.Enum):
-    USER = "user"
-    MODERATOR = "moderator"
-    ADMIN = "admin"
-
-
-class GenderEnum(str, enum.Enum):
-    MAN = "man"
-    WOMAN = "woman"
 
 
 class UserGroupModel(Base):
@@ -172,6 +161,7 @@ class TokenBaseModel(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
+        index=True,
         nullable=False,
         default=lambda: datetime.now(timezone.utc) + timedelta(days=1),
     )

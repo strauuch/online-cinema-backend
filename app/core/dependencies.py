@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from database.models.accounts import UserModel
+from database.models.accounts import UserModel, UserGroupEnum
 from exceptions.security import TokenExpiredError, InvalidTokenError
 from notifications import EmailSenderInterface, EmailSender
 from security.interfaces import JWTAuthManagerInterface
@@ -82,20 +82,6 @@ async def get_current_user(
     Extracts the token from the Authorization header, decodes it to retrieve the user ID,
     and fetches the corresponding user from the database along with their group information.
     Ensures that the user exists and their account is active.
-
-    Args:
-        token (str): The JWT access token provided in the 'Authorization' header.
-        jwt_manager (JWTAuthManagerInterface): The manager responsible for decoding JWT tokens.
-        db (AsyncSession): The asynchronous database session for user retrieval.
-
-    Returns:
-        UserModel: The authenticated user instance including related group data.
-
-    Raises:
-        HTTPException:
-            - 401 Unauthorized if the token is expired, invalid, or missing the user ID.
-            - 401 Unauthorized if the user associated with the token no longer exists.
-            - 403 Forbidden if the user account is present but not activated.
     """
     try:
         payload = jwt_manager.decode_access_token(token)
@@ -134,3 +120,17 @@ async def get_current_user(
         )
 
     return user
+
+
+async def get_current_admin_user(
+    current_user: UserModel = Depends(get_current_user),
+) -> UserModel:
+    """
+    Dependency to ensure the current authenticated user is an administrator.
+    """
+    if current_user.group.name != UserGroupEnum.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required.",
+        )
+    return current_user

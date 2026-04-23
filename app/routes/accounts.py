@@ -84,6 +84,7 @@ router = APIRouter()
 async def register_user(
     user_data: UserRegistrationRequestSchema,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
@@ -128,9 +129,8 @@ async def register_user(
             detail="An error occurred during user creation.",
         ) from e
     else:
-        activation_link = "http://127.0.0.1/accounts/activate/"
 
-        await email_sender.send_activation_email(new_user.email, activation_link)
+        await email_sender.send_activation_email(new_user.email, settings.activation_link)
 
         return UserRegistrationResponseSchema.model_validate(new_user)
 
@@ -165,6 +165,7 @@ async def register_user(
 async def activate_account(
     activation_data: UserActivationRequestSchema,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
@@ -212,10 +213,8 @@ async def activate_account(
 
     await db.commit()
 
-    login_link = "http://127.0.0.1/accounts/login/"
-
     await email_sender.send_activation_complete_email(
-        str(activation_data.email), login_link
+        str(activation_data.email), settings.login_link
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -245,6 +244,7 @@ async def activate_account(
 async def resend_activation_token(
     data: UserActivationResendRequestSchema,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
@@ -281,8 +281,7 @@ async def resend_activation_token(
             detail="An error occurred while processing the request.",
         )
 
-    activation_link = "http://127.0.0.1/accounts/activate/"
-    await email_sender.send_activation_email(user.email, activation_link)
+    await email_sender.send_activation_email(user.email, settings.activation_link)
 
     return MessageResponseSchema(
         message="If your email is registered, you will receive a new activation link."
@@ -353,6 +352,7 @@ async def change_password(
 async def request_password_reset_token(
     data: PasswordResetRequestSchema,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
@@ -377,10 +377,8 @@ async def request_password_reset_token(
     db.add(reset_token)
     await db.commit()
 
-    password_reset_complete_link = "http://127.0.0.1/accounts/password-reset-complete/"
-
     await email_sender.send_password_reset_email(
-        str(data.email), password_reset_complete_link
+        str(data.email), settings.password_reset_link
     )
 
     return MessageResponseSchema(
@@ -430,6 +428,7 @@ async def request_password_reset_token(
 async def reset_password(
     data: PasswordResetCompleteRequestSchema,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
@@ -474,9 +473,7 @@ async def reset_password(
             detail="An error occurred while resetting the password.",
         )
 
-    login_link = "http://127.0.0.1/accounts/login/"
-
-    await email_sender.send_password_reset_complete_email(str(data.email), login_link)
+    await email_sender.send_password_reset_complete_email(str(data.email), settings.login_link)
 
     return MessageResponseSchema(message="Password reset successfully.")
 
@@ -520,10 +517,12 @@ async def login_user(
     login_data: UserLoginRequestSchema,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> UserLoginResponseSchema:
     """
     Endpoint for user login.
+    If the account is not active, checks for a valid token and resends if necessary.
     """
     stmt = select(UserModel).filter_by(email=login_data.email)
     result = await db.execute(stmt)
@@ -536,9 +535,36 @@ async def login_user(
         )
 
     if not user.is_active:
+        stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
+        result = await db.execute(stmt)
+        token_record = result.scalars().first()
+
+        now = datetime.now(timezone.utc)
+
+        if not token_record or cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc) < now:
+            try:
+                if token_record:
+                    await db.delete(token_record)
+
+                new_token = ActivationTokenModel(user_id=cast(int, user.id))
+                db.add(new_token)
+                await db.commit()
+
+                await email_sender.send_activation_email(user.email, settings.activation_link)
+
+                detail_msg = "Account not activated. A new activation link has been sent to your email."
+            except SQLAlchemyError:
+                await db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Database error while regenerating token."
+                )
+        else:
+            detail_msg = "Account not activated. Please check your email for the activation link."
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is not activated.",
+            detail=detail_msg,
         )
 
     jwt_refresh_token = jwt_manager.create_refresh_token({"user_id": user.id})

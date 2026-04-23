@@ -46,7 +46,7 @@ from schemas.accounts import (
     AdminUserListResponseSchema,
     AdminUserUpdateResponseSchema,
     AdminUserUpdateRequestSchema,
-    AdminUserDetailResponseSchema,
+    AdminUserDetailResponseSchema, UserActivationResendRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 from storages.interfaces import S3StorageInterface
@@ -219,6 +219,74 @@ async def activate_account(
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
+
+
+@router.post(
+    "/activate/resend/",
+    response_model=MessageResponseSchema,
+    summary="Resend Activation Token",
+    description="Deletes any existing activation token for the user and sends a new one.",
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {
+            "description": "Bad Request - User account is already active.",
+            "content": {
+                "application/json": {"example": {"detail": "User account is already active."}}
+            },
+        },
+        500: {
+            "description": "Internal Server Error - Database error.",
+            "content": {
+                "application/json": {"example": {"detail": "An error occurred during token regeneration."}}
+            },
+        },
+    },
+)
+async def resend_activation_token(
+    data: UserActivationResendRequestSchema,
+    db: AsyncSession = Depends(get_db),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+) -> MessageResponseSchema:
+    """
+    Endpoint to resend the activation token.
+    """
+    stmt = select(UserModel).filter_by(email=data.email)
+    result = await db.execute(stmt)
+    user = result.scalars().first()
+
+    if not user:
+        return MessageResponseSchema(
+            message="If your email is registered, you will receive a new activation link."
+        )
+
+    if user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User account is already active.",
+        )
+
+    try:
+        await db.execute(
+            delete(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
+        )
+
+        new_token = ActivationTokenModel(user_id=cast(int, user.id))
+        db.add(new_token)
+
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while processing the request.",
+        )
+
+    activation_link = "http://127.0.0.1/accounts/activate/"
+    await email_sender.send_activation_email(user.email, activation_link)
+
+    return MessageResponseSchema(
+        message="If your email is registered, you will receive a new activation link."
+    )
 
 
 @router.post(
@@ -784,7 +852,9 @@ async def admin_update_user(
 
     try:
         await db.commit()
-        await db.refresh(user)
+        stmt = select(UserModel).options(joinedload(UserModel.group)).where(UserModel.id == user.id)
+        result = await db.execute(stmt)
+        user = result.scalar_one()
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(

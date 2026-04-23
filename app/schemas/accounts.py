@@ -67,6 +67,9 @@ class UserActivationRequestSchema(BaseModel):
     email: EmailStr
     token: str
 
+class UserActivationResendRequestSchema(BaseModel):
+    email: EmailStr
+
 
 class MessageResponseSchema(BaseModel):
     message: str

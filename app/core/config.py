@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     EMAIL_USE_TLS: bool = False
     MAILHOG_API_PORT: int = 8025
 
+    FRONTEND_URL: str = "http://127.0.0.1"
+
     # S3_Storage
     S3_STORAGE_HOST: str = "minio-cinema"
     S3_STORAGE_PORT: int = 9000
@@ -54,6 +56,18 @@ class Settings(BaseSettings):
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_DB_PORT}/{self.POSTGRES_DB}"
+
+    @property
+    def activation_link(self) -> str:
+        return f"{self.FRONTEND_URL}/accounts/activate/"
+
+    @property
+    def login_link(self) -> str:
+        return f"{self.FRONTEND_URL}/accounts/login/"
+
+    @property
+    def password_reset_link(self) -> str:
+        return f"{self.FRONTEND_URL}/accounts/password-reset-complete/"
 
 
 settings = Settings()

@@ -1,12 +1,13 @@
 import os
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Request, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from database.models.accounts import UserModel, UserGroupEnum
+from schemas.accounts import UserLoginRequestSchema
 from exceptions.security import TokenExpiredError, InvalidTokenError
 from notifications import EmailSenderInterface, EmailSender
 from security.interfaces import JWTAuthManagerInterface
@@ -15,7 +16,7 @@ from storages.s3 import S3StorageInterface, S3StorageClient
 from core.config import settings
 from database import get_db
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/accounts/login/")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/accounts/login/")
 
 
 def get_settings():
@@ -134,3 +135,22 @@ async def get_current_admin_user(
             detail="Admin access required.",
         )
     return current_user
+
+
+async def get_login_credentials(request: Request) -> UserLoginRequestSchema:
+    content_type = request.headers.get("Content-Type", "")
+
+    if "application/x-www-form-urlencoded" in content_type:
+        form = await request.form()
+        return UserLoginRequestSchema(
+            email=form.get("username"), password=form.get("password")
+        )
+
+    try:
+        data = await request.json()
+        return UserLoginRequestSchema(**data)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid JSON or missing credentials",
+        )

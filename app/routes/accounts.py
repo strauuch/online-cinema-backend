@@ -15,6 +15,7 @@ from core.dependencies import (
     get_current_user,
     get_s3_storage_client,
     get_current_admin_user,
+    get_login_credentials,
 )
 from database import get_db
 from database.models.accounts import (
@@ -525,7 +526,7 @@ async def reset_password(
     },
 )
 async def login_user(
-    login_data: UserLoginRequestSchema,
+    login_data: UserLoginRequestSchema = Depends(get_login_credentials),
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),

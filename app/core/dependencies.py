@@ -1,7 +1,7 @@
 import os
 
 from fastapi import Request, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
@@ -138,19 +138,24 @@ async def get_current_admin_user(
 
 
 async def get_login_credentials(request: Request) -> UserLoginRequestSchema:
+
     content_type = request.headers.get("Content-Type", "")
 
     if "application/x-www-form-urlencoded" in content_type:
+
         form = await request.form()
+
         return UserLoginRequestSchema(
             email=form.get("username"), password=form.get("password")
         )
 
-    try:
+    if "application/json" in content_type:
+
         data = await request.json()
+
         return UserLoginRequestSchema(**data)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid JSON or missing credentials",
-        )
+
+    raise HTTPException(
+        status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+        detail="Unsupported media type",
+    )

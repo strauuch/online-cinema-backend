@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,6 +86,7 @@ router = APIRouter()
 )
 async def register_user(
     user_data: UserRegistrationRequestSchema,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -130,13 +132,12 @@ async def register_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during user creation.",
         ) from e
-    else:
 
-        await email_sender.send_activation_email(
-            new_user.email, settings.activation_link
-        )
+    background_tasks.add_task(
+        email_sender.send_activation_email, new_user.email, settings.activation_link
+    )
 
-        return UserRegistrationResponseSchema.model_validate(new_user)
+    return UserRegistrationResponseSchema.model_validate(new_user)
 
 
 @router.post(
@@ -168,6 +169,7 @@ async def register_user(
 )
 async def activate_account(
     activation_data: UserActivationRequestSchema,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -217,8 +219,10 @@ async def activate_account(
 
     await db.commit()
 
-    await email_sender.send_activation_complete_email(
-        str(activation_data.email), settings.login_link
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        str(activation_data.email),
+        settings.login_link,
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -253,6 +257,7 @@ async def activate_account(
 )
 async def resend_activation_token(
     data: UserActivationResendRequestSchema,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -291,7 +296,9 @@ async def resend_activation_token(
             detail="An error occurred while processing the request.",
         )
 
-    await email_sender.send_activation_email(user.email, settings.activation_link)
+    background_tasks.add_task(
+        email_sender.send_activation_email, user.email, settings.activation_link
+    )
 
     return MessageResponseSchema(
         message="If your email is registered, you will receive a new activation link."
@@ -361,6 +368,7 @@ async def change_password(
 )
 async def request_password_reset_token(
     data: PasswordResetRequestSchema,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -387,8 +395,10 @@ async def request_password_reset_token(
     db.add(reset_token)
     await db.commit()
 
-    await email_sender.send_password_reset_email(
-        str(data.email), settings.password_reset_link
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        str(data.email),
+        settings.password_reset_link,
     )
 
     return MessageResponseSchema(
@@ -437,6 +447,7 @@ async def request_password_reset_token(
 )
 async def reset_password(
     data: PasswordResetCompleteRequestSchema,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -483,8 +494,10 @@ async def reset_password(
             detail="An error occurred while resetting the password.",
         )
 
-    await email_sender.send_password_reset_complete_email(
-        str(data.email), settings.login_link
+    background_tasks.add_task(
+        email_sender.send_password_reset_complete_email,
+        str(data.email),
+        settings.login_link,
     )
 
     return MessageResponseSchema(message="Password reset successfully.")
@@ -526,7 +539,9 @@ async def reset_password(
     },
 )
 async def login_user(
+    background_tasks: BackgroundTasks,
     login_data: UserLoginRequestSchema = Depends(get_login_credentials),
+    # login_data: UserLoginRequestSchema,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -568,8 +583,10 @@ async def login_user(
                 db.add(new_token)
                 await db.commit()
 
-                await email_sender.send_activation_email(
-                    user.email, settings.activation_link
+                background_tasks.add_task(
+                    email_sender.send_activation_email,
+                    user.email,
+                    settings.activation_link,
                 )
 
                 detail_msg = "Account not activated. A new activation link has been sent to your email."

@@ -1,11 +1,13 @@
 #!/bin/bash
 set -e
 
-echo "Running migrations..."
-alembic upgrade head
+if [[ "$*" == *"uvicorn"* ]]; then
+  echo "Detected app start, running migrations..."
+  alembic upgrade head
 
-echo "Seeding initial data..."
-python app/manage.py seed_users
+  echo "Seeding initial data..."
+  python app/manage.py seed_users
+fi
 
-echo "Starting FastAPI..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+echo "Starting command: $*"
+exec "$@"

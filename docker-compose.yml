@@ -15,12 +15,16 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - theater_network
 
   redis:
     image: redis:7-alpine
     container_name: redis_cinema
     ports:
       - "6379:6379"
+    networks:
+      - theater_network
 
   app:
     build: .
@@ -38,10 +42,14 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
-    command: >
-      sh -c "alembic upgrade head &&
-             python app/manage.py seed_users &&
-             python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+#    command: >
+#      sh -c "alembic upgrade head &&
+#             sleep 3 &&
+#             python app/manage.py seed_users &&
+#             python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    networks:
+      - theater_network
 
   celery_worker:
     build: .
@@ -55,8 +63,9 @@ services:
       - PYTHONPATH=/app/app
     volumes:
       - .:/app
-    entrypoint: []
     command: celery -A worker.celery_app worker --loglevel=info
+    networks:
+      - theater_network
 
   celery_beat:
     build: .
@@ -70,8 +79,58 @@ services:
       - PYTHONPATH=/app/app
     volumes:
       - .:/app
-    entrypoint: []
     command: celery -A worker.celery_app beat --loglevel=info
+    networks:
+      - theater_network
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: cinema_mailhog
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - theater_network
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio_cinema
+    command: server --console-address ":9001" /data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    env_file:
+      - .env
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - theater_network
+
+  minio_mc:
+    image: minio/mc
+    container_name: minio_mc_cinema
+    depends_on:
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      mc mb myminio/${MINIO_STORAGE} || true;
+      mc anonymous set download myminio/${MINIO_STORAGE};
+      exit 0;
+      "
+    networks:
+      - theater_network
+
+networks:
+  theater_network:
+    driver: bridge
 
 volumes:
   pg_data:

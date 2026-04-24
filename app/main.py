@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from app.core.config import settings
+from core.config import settings
 
-from app.routes import accounts_router
+from routes import accounts_router
 
 app = FastAPI(title="Online Cinema", description="Description of project")
 

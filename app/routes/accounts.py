@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import cast
 
 from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -540,8 +540,7 @@ async def reset_password(
 )
 async def login_user(
     background_tasks: BackgroundTasks,
-    login_data: UserLoginRequestSchema = Depends(get_login_credentials),
-    # login_data: UserLoginRequestSchema,
+    form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -551,11 +550,14 @@ async def login_user(
     Endpoint for user login.
     If the account is not active, checks for a valid token and resends if necessary.
     """
-    stmt = select(UserModel).filter_by(email=login_data.email)
+    email = form_data.username
+    password = form_data.password
+
+    stmt = select(UserModel).filter_by(email=email)
     result = await db.execute(stmt)
     user = result.scalars().first()
 
-    if not user or not user.verify_password(login_data.password):
+    if not user or not user.verify_password(password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password.",

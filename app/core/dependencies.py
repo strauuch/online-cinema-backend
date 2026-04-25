@@ -1,13 +1,12 @@
 import os
 
-from fastapi import Request, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from database.models.accounts import UserModel, UserGroupEnum
-from schemas.accounts import UserLoginRequestSchema
 from exceptions.security import TokenExpiredError, InvalidTokenError
 from notifications import EmailSenderInterface, EmailSender
 from security.interfaces import JWTAuthManagerInterface
@@ -135,27 +134,3 @@ async def get_current_admin_user(
             detail="Admin access required.",
         )
     return current_user
-
-
-async def get_login_credentials(request: Request) -> UserLoginRequestSchema:
-
-    content_type = request.headers.get("Content-Type", "")
-
-    if "application/x-www-form-urlencoded" in content_type:
-
-        form = await request.form()
-
-        return UserLoginRequestSchema(
-            email=form.get("username"), password=form.get("password")
-        )
-
-    if "application/json" in content_type:
-
-        data = await request.json()
-
-        return UserLoginRequestSchema(**data)
-
-    raise HTTPException(
-        status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-        detail="Unsupported media type",
-    )

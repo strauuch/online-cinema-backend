@@ -42,14 +42,20 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "postgres_cinema")
 
     # JWT
-    SECRET_KEY_ACCESS: str = os.getenv("SECRET_KEY_ACCESS", "your_super_secret_access_key_here")
-    SECRET_KEY_REFRESH: str = os.getenv("SECRET_KEY_REFRESH", "your_super_secret_refresh_key_here")
+    SECRET_KEY_ACCESS: str = os.getenv(
+        "SECRET_KEY_ACCESS", "your_super_secret_access_key_here"
+    )
+    SECRET_KEY_REFRESH: str = os.getenv(
+        "SECRET_KEY_REFRESH", "your_super_secret_refresh_key_here"
+    )
     JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")
     LOGIN_TIME_DAYS: int = 7
 
     # Celery & Redis
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
-    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
+    CELERY_RESULT_BACKEND: str = os.getenv(
+        "CELERY_RESULT_BACKEND", "redis://redis:6379/0"
+    )
     REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6379))
 

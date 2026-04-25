@@ -46,10 +46,6 @@ class PasswordChangeRequestSchema(BaseModel):
         return validators.validate_password_strength(value)
 
 
-class UserLoginRequestSchema(BaseEmailPasswordSchema):
-    pass
-
-
 class UserLoginResponseSchema(BaseModel):
     access_token: str
     refresh_token: str

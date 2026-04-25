@@ -16,7 +16,6 @@ from core.dependencies import (
     get_current_user,
     get_s3_storage_client,
     get_current_admin_user,
-    get_login_credentials,
 )
 from database import get_db
 from database.models.accounts import (
@@ -38,7 +37,6 @@ from schemas.accounts import (
     PasswordResetRequestSchema,
     PasswordResetCompleteRequestSchema,
     UserLoginResponseSchema,
-    UserLoginRequestSchema,
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema,
     PasswordChangeRequestSchema,

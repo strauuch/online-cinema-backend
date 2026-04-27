@@ -851,16 +851,28 @@ async def update_profile(
 async def list_users(
     limit: int = 10,
     offset: int = 0,
+    email_query: str | None = None,
+    group_id: int | None = None,
+    is_active: bool | None = None,
     current_user: UserModel = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = (
         select(UserModel)
         .options(joinedload(UserModel.group))
-        .limit(limit)
-        .offset(offset)
-        .order_by(UserModel.id)
     )
+
+    if email_query:
+        stmt = stmt.where(UserModel.email.ilike(f"%{email_query}%"))
+
+    if group_id:
+        stmt = stmt.where(UserModel.group_id == group_id)
+
+    if is_active is not None:
+        stmt = stmt.where(UserModel.is_active == is_active)
+
+    stmt = stmt.limit(limit).offset(offset).order_by(UserModel.id)
+
     result = await db.execute(stmt)
     return result.scalars().all()
 

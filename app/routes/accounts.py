@@ -54,6 +54,10 @@ from storages.interfaces import S3StorageInterface
 
 router = APIRouter()
 
+# =============================================================================
+# USER ROUTES
+# =============================================================================
+
 
 @router.post(
     "/register/",
@@ -90,7 +94,9 @@ async def register_user(
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
-    Endpoint for user registration.
+    Register a new user and send an activation email.
+    - **Conflict (409)**: Email already registered.
+    - **Background Task**: Activation link delivery.
     """
     stmt = select(UserModel).where(UserModel.email == user_data.email)
     result = await db.execute(stmt)
@@ -173,7 +179,9 @@ async def activate_account(
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
-    Endpoint to activate a user's account.
+    Activate a user account using email and token.
+    - **Success**: Account activated and profile initialized.
+    - **Error (400)**: Token invalids, expired, or an account already active.
     """
     stmt = (
         select(ActivationTokenModel)
@@ -261,7 +269,9 @@ async def resend_activation_token(
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
-    Endpoint to resend the activation token.
+    Regenerate and resend activation token.
+    - **Logic**: Deletes any existing tokens before creating a new one.
+    - **Validation**: Only for inactive accounts.
     """
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
@@ -324,10 +334,9 @@ async def change_password(
     current_user: UserModel = Depends(get_current_user),
 ) -> MessageResponseSchema:
     """
-    Endpoint to change the user's password.
-
-    The new password is automatically validated by the schema
-    using accounts_validators.validate_password_strength.
+    Update password for the currently authenticated user.
+    - **Security**: Verifies old password.
+    - **Validation**: New password must be different and meet strength requirements.
     """
     if not current_user.verify_password(data.old_password):
         raise HTTPException(
@@ -372,7 +381,9 @@ async def request_password_reset_token(
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
-    Endpoint to request a password reset token.
+    Send a password reset link to the user's email.
+    - **Privacy**: Returns a success message even if the user doesn't exist.
+    - **Restriction**: Works only for active accounts.
     """
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
@@ -451,7 +462,9 @@ async def reset_password(
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
-    Endpoint for resetting a user's password.
+    Set a new password using a valid reset token.
+    - **Validation**: Token must match and be within the expiration period.
+    - **Success**: Token is deleted after use.
     """
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
@@ -545,8 +558,9 @@ async def login_user(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> UserLoginResponseSchema:
     """
-    Endpoint for user login.
-    If the account is not active, checks for a valid token and resends if necessary.
+    Authenticate user and return JWT tokens.
+    - **Auto-resend**: Triggers a new activation email if account is inactive and token expired.
+    - **Response**: Returns Access and Refresh tokens.
     """
     email = form_data.username
     password = form_data.password
@@ -660,7 +674,8 @@ async def logout_user(
     current_user: UserModel = Depends(get_current_user),
 ) -> MessageResponseSchema:
     """
-    Endpoint for user logout.
+    Log out the user by revoking their refresh token.
+    - **Action**: Deletes the specific RefreshToken record from the database.
     """
     stmt = select(RefreshTokenModel).filter_by(
         token=token_data.refresh_token, user_id=current_user.id
@@ -718,7 +733,8 @@ async def refresh_access_token(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> TokenRefreshResponseSchema:
     """
-    Endpoint to refresh an access token.
+    Issue a new access token using a valid refresh token.
+    - **Security**: Validates token existence in DB and JWT integrity.
     """
     try:
         decoded_token = jwt_manager.decode_refresh_token(token_data.refresh_token)
@@ -756,13 +772,20 @@ async def refresh_access_token(
     "/me/",
     response_model=UserMeResponseSchema,
     summary="Get current user info",
+    description="Retrieve detailed information about the currently authenticated user, including profile details and avatar URL.",
+    responses={
+        401: {"description": "Unauthorized - Invalid or missing access token."},
+    },
 )
 async def get_me(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
 ) -> UserMeResponseSchema:
-
+    """
+    Retrieve current user's full data.
+    - **Inclusions**: Group details, profile info, and S3 avatar URL.
+    """
     await db.refresh(current_user, ["profile"])
 
     avatar_url = ""
@@ -782,7 +805,12 @@ async def get_me(
     response_model=ProfileResponseSchema,
     status_code=status.HTTP_200_OK,
     summary="Update User Profile",
-    description="Update a personal profile with an avatar. Only for authenticated users without an existing profile.",
+    description="Update personal profile information and upload an avatar to S3 storage.",
+    responses={
+        401: {"description": "Unauthorized."},
+        502: {"description": "Bad Gateway - Failed to upload avatar to storage."},
+        500: {"description": "Internal Server Error - Database update failed."},
+    },
 )
 async def update_profile(
     profile_data: ProfileUpdateRequestSchema = Depends(
@@ -793,9 +821,10 @@ async def update_profile(
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
 ) -> ProfileResponseSchema:
     """
-    Endpoint to update a profile for the current authenticated user.
+    Create or update user profile information.
+    - **Avatar**: Handles file upload to S3 storage.
+    - **Storage**: Updates existing profile or creates a new one if missing.
     """
-
     await db.refresh(current_user, ["profile"])
     profile = current_user.profile
 
@@ -847,6 +876,11 @@ async def update_profile(
     "/admin/users/",
     response_model=list[AdminUserListResponseSchema],
     summary="Admin: List all users",
+    description="Fetch a paginated list of all users with optional filtering by email, group, and status. Requires admin privileges.",
+    responses={
+        401: {"description": "Unauthorized."},
+        403: {"description": "Forbidden - Admin privileges required."},
+    },
 )
 async def list_users(
     limit: int = 10,
@@ -857,6 +891,11 @@ async def list_users(
     current_user: UserModel = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    [Admin] Get a paginated list of users.
+    - **Filters**: Email (ILike), Group ID, and Active status.
+    - **Access**: Strictly for users with Admin group.
+    """
     stmt = select(UserModel).options(joinedload(UserModel.group))
 
     if email_query:
@@ -877,13 +916,25 @@ async def list_users(
 @router.get(
     "/admin/users/{user_id}/",
     response_model=AdminUserDetailResponseSchema,
-    summary="Admin: Get user details",
+    summary="Admin: Update user status or group",
+    description="Change a user's active status or reassign them to a different group (e.g., promote to Moderator).",
+    responses={
+        401: {"description": "Unauthorized."},
+        403: {"description": "Forbidden."},
+        404: {"description": "User not found."},
+        500: {"description": "Database error."},
+    },
 )
 async def get_user(
     user_id: int,
     current_user: UserModel = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    [Admin] Fetch detailed information for a specific user.
+    - **Includes**: Relations with Group and Profile.
+    - **Error (404)**: User does not exist.
+    """
     stmt = (
         select(UserModel)
         .options(joinedload(UserModel.group), joinedload(UserModel.profile))
@@ -904,7 +955,12 @@ async def get_user(
 @router.patch(
     "/admin/users/{user_id}/",
     response_model=AdminUserUpdateResponseSchema,
-    summary="Admin: Update user status or group",
+    summary="Admin: Get user details",
+    responses={
+        401: {"description": "Unauthorized - Missing or invalid token."},
+        403: {"description": "Forbidden - Admin access only."},
+        404: {"description": "User not found."},
+    },
 )
 async def admin_update_user(
     user_id: int,
@@ -912,6 +968,10 @@ async def admin_update_user(
     current_user: UserModel = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    [Admin] Update user account status or group.
+    - **Fields**: Supports partial updates (patching) for 'is_active' and 'group_id'.
+    """
     user = await db.get(UserModel, user_id)
     if not user:
         raise HTTPException(

@@ -857,10 +857,7 @@ async def list_users(
     current_user: UserModel = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = (
-        select(UserModel)
-        .options(joinedload(UserModel.group))
-    )
+    stmt = select(UserModel).options(joinedload(UserModel.group))
 
     if email_query:
         stmt = stmt.where(UserModel.email.ilike(f"%{email_query}%"))

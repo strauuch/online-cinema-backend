@@ -70,3 +70,18 @@ class MovieUpdateSchema(BaseModel):
     genre_ids: Optional[List[int]] = None
     star_ids: Optional[List[int]] = None
     director_ids: Optional[List[int]] = None
+
+
+class RatingCreateSchema(BaseModel):
+    score: int = Field(..., ge=1, le=10, description="Rating from 1 to 10")
+
+
+class RatingReadSchema(RatingCreateSchema):
+    movie_id: int
+    user_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class VoteCreateSchema(BaseModel):
+    is_like: bool  # True = Like, False = Dislike

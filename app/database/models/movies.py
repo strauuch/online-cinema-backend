@@ -1,6 +1,7 @@
+import uuid as python_uuid
 import decimal
-import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import (
     String,
@@ -14,11 +15,14 @@ from sqlalchemy import (
     Column,
     func,
     DateTime,
+    Enum,
 )
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from database import Base
+from database.models.accounts import UserModel
+from database.models.enums import NotificationType
 
 movie_genres = Table(
     "movies_genres",
@@ -123,8 +127,8 @@ class MovieModel(Base):
     __tablename__ = "movies"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    uuid: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), unique=True, default=uuid.uuid4
+    uuid: Mapped[python_uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), unique=True, default=python_uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String(250), nullable=False)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -159,6 +163,9 @@ class MovieModel(Base):
     )
     movie_votes: Mapped[list["MovieVoteModel"]] = relationship(
         "MovieVoteModel", back_populates="movie", cascade="all, delete-orphan"
+    )
+    comments: Mapped[list["MovieCommentModel"]] = relationship(
+        "MovieCommentModel", back_populates="movie", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
@@ -215,3 +222,54 @@ class MovieVoteModel(Base):
     is_like: Mapped[bool] = mapped_column(nullable=False)
 
     movie: Mapped["MovieModel"] = relationship(back_populates="movie_votes")
+
+
+class MovieCommentModel(Base):
+    __tablename__ = "movie_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    movie_id: Mapped[int] = mapped_column(
+        ForeignKey("movies.id", ondelete="CASCADE"), nullable=False
+    )
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("movie_comments.id", ondelete="CASCADE"), nullable=True
+    )
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    movie: Mapped["MovieModel"] = relationship(back_populates="comments")
+    user: Mapped["UserModel"] = relationship("UserModel")
+
+    parent: Mapped[Optional["MovieCommentModel"]] = relationship(
+        "MovieCommentModel", remote_side=[id], back_populates="replies"
+    )
+    replies: Mapped[list["MovieCommentModel"]] = relationship(
+        "MovieCommentModel", back_populates="parent", cascade="all, delete-orphan"
+    )
+
+
+class NotificationModel(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+    notification_type: Mapped[NotificationType] = mapped_column(
+        Enum(NotificationType), nullable=False
+    )
+
+    content: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    link_to_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    is_read: Mapped[bool] = mapped_column(default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

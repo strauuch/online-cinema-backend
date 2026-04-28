@@ -24,7 +24,8 @@ from schemas.movies import (
     MovieShortResponseSchema,
     MovieDetailResponseSchema,
     GenreWithCountSchema,
-    RatingCreateSchema, VoteCreateSchema,
+    RatingCreateSchema,
+    VoteCreateSchema,
 )
 from schemas.pagination import Page
 
@@ -322,13 +323,16 @@ async def vote_movie(
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = select(MovieVoteModel).where(
-        MovieVoteModel.user_id == current_user.id,
-        MovieVoteModel.movie_id == movie_id
+        MovieVoteModel.user_id == current_user.id, MovieVoteModel.movie_id == movie_id
     )
     existing_vote = (await db.execute(stmt)).scalar_one_or_none()
 
     if not existing_vote:
-        db.add(MovieVoteModel(user_id=current_user.id, movie_id=movie_id, is_like=vote_data.is_like))
+        db.add(
+            MovieVoteModel(
+                user_id=current_user.id, movie_id=movie_id, is_like=vote_data.is_like
+            )
+        )
         update_stmt = (
             update(MovieModel)
             .where(MovieModel.id == movie_id)

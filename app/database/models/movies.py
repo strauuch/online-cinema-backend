@@ -152,12 +152,14 @@ class MovieModel(Base):
         "DirectorModel", secondary=movie_directors, back_populates="movies"
     )
     favorites: Mapped[list["MovieFavoriteModel"]] = relationship(
-        "MovieFavoriteModel", back_populates="movie"
+        "MovieFavoriteModel", back_populates="movie", cascade="all, delete-orphan"
     )
     ratings: Mapped[list["MovieRatingModel"]] = relationship(
-        "MovieRatingModel", back_populates="movie"
+        "MovieRatingModel", back_populates="movie", cascade="all, delete-orphan"
     )
-    movie_votes: Mapped[list["MovieVoteModel"]] = relationship(back_populates="movie")
+    movie_votes: Mapped[list["MovieVoteModel"]] = relationship(
+        "MovieVoteModel", back_populates="movie", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         UniqueConstraint("name", "year", "time", name="unique_movie_constraint"),
@@ -199,10 +201,6 @@ class MovieRatingModel(Base):
     score: Mapped[int] = mapped_column(Integer)
 
     movie: Mapped["MovieModel"] = relationship(back_populates="ratings")
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "movie_id", name="unique_user_movie_rating"),
-    )
 
 
 class MovieVoteModel(Base):

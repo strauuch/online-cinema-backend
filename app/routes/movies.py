@@ -2,7 +2,7 @@ from uuid import UUID
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, status, HTTPException, Query
-from sqlalchemy import select, func, or_, delete
+from sqlalchemy import select, func, or_, delete, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -16,12 +16,15 @@ from database.models.movies import (
     DirectorModel,
     movie_genres,
     MovieFavoriteModel,
+    MovieVoteModel,
+    MovieRatingModel,
 )
 from schemas.accounts import MessageResponseSchema
 from schemas.movies import (
     MovieShortResponseSchema,
     MovieDetailResponseSchema,
     GenreWithCountSchema,
+    RatingCreateSchema, VoteCreateSchema,
 )
 from schemas.pagination import Page
 
@@ -142,7 +145,11 @@ async def list_movies(
     if min_imdb:
         stmt = stmt.where(MovieModel.imdb >= min_imdb)
     if genre_id:
-        stmt = stmt.join(movie_genres).where(movie_genres.c.genre_id == genre_id).distinct()
+        stmt = (
+            stmt.join(movie_genres)
+            .where(movie_genres.c.genre_id == genre_id)
+            .distinct()
+        )
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total_count = await db.scalar(count_stmt) or 0
@@ -261,3 +268,77 @@ async def remove_favorite(
         raise HTTPException(status_code=404, detail="Movie was not in your favorites")
 
     return {"message": "Movie removed from favorites"}
+
+
+@router.post(
+    "/{movie_uuid}/rate/",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Rate a movie",
+    description="Set or update a 10-point scale rating for a movie.",
+)
+async def rate_movie(
+    movie_uuid: UUID,
+    rating_data: RatingCreateSchema,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    movie_id = await get_movie_id_by_uuid(movie_uuid, db)
+
+    stmt = select(MovieRatingModel).where(
+        MovieRatingModel.user_id == current_user.id,
+        MovieRatingModel.movie_id == movie_id,
+    )
+    rating = (await db.execute(stmt)).scalar_one_or_none()
+
+    if rating:
+        rating.score = rating_data.score
+        message = "Rating updated"
+    else:
+        db.add(
+            MovieRatingModel(
+                user_id=current_user.id, movie_id=movie_id, score=rating_data.score
+            )
+        )
+        message = "Movie rated"
+
+    await db.commit()
+    return {"message": message}
+
+
+@router.post(
+    "/{movie_uuid}/vote/",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Like or Dislike a movie",
+    description="Submit a like (true) or dislike (false). Updates existing vote if found.",
+)
+async def vote_movie(
+    movie_uuid: UUID,
+    vote_data: VoteCreateSchema,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    movie_id = await get_movie_id_by_uuid(movie_uuid, db)
+
+    stmt = select(MovieVoteModel).where(
+        MovieVoteModel.user_id == current_user.id,
+        MovieVoteModel.movie_id == movie_id
+    )
+    existing_vote = (await db.execute(stmt)).scalar_one_or_none()
+
+    if not existing_vote:
+        db.add(MovieVoteModel(user_id=current_user.id, movie_id=movie_id, is_like=vote_data.is_like))
+        update_stmt = (
+            update(MovieModel)
+            .where(MovieModel.id == movie_id)
+            .values(votes=MovieModel.votes + 1)
+        )
+        await db.execute(update_stmt)
+        message = "Vote cast"
+    else:
+        existing_vote.is_like = vote_data.is_like
+        message = "Vote updated"
+
+    await db.commit()
+    return {"message": message}

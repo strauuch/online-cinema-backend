@@ -3,10 +3,11 @@ import os
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 
 from database.models.accounts import UserModel, UserGroupEnum
+from database.models.movies import MovieRatingModel, MovieModel
 from exceptions.security import TokenExpiredError, InvalidTokenError
 from notifications import EmailSenderInterface, EmailSender
 from security.interfaces import JWTAuthManagerInterface
@@ -148,3 +149,20 @@ async def get_current_staff_user(
             detail="Staff access required (Admin or Moderator).",
         )
     return current_user
+
+
+async def update_movie_rating_stats(movie_id: int, db: AsyncSession):
+    """
+    Recalculates the average rating and number of ratings for a movie.
+    """
+    stmt = select(
+        func.avg(MovieRatingModel.score).label("avg_score"),
+        func.count(MovieRatingModel.movie_id).label("total_count"),
+    ).where(MovieRatingModel.movie_id == movie_id)
+    result = await db.execute(stmt)
+    stats = result.one_or_none()
+
+    movie = await db.get(MovieModel, movie_id)
+    if movie and stats:
+        movie.rating_avg = round(float(stats.avg_score or 0.0), 1)
+        movie.rating_count = int(stats.total_count or 0)

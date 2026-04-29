@@ -7,7 +7,11 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from core.dependencies import get_current_user, get_current_staff_user
+from core.dependencies import (
+    get_current_user,
+    get_current_staff_user,
+    update_movie_rating_stats,
+)
 from database import get_db
 from database.models.accounts import UserModel
 from database.models.enums import NotificationType, UserGroupEnum
@@ -286,7 +290,7 @@ async def remove_favorite(
 
 
 @router.post(
-    "/{movie_uuid}/rate/",
+    "/{movie_uuid}/rating/",
     response_model=MessageResponseSchema,
     status_code=status.HTTP_200_OK,
     summary="Rate a movie",
@@ -310,14 +314,24 @@ async def rate_movie(
         rating.score = rating_data.score
         message = "Rating updated"
     else:
-        db.add(
-            MovieRatingModel(
-                user_id=current_user.id, movie_id=movie_id, score=rating_data.score
-            )
+        rating = MovieRatingModel(
+            user_id=current_user.id, movie_id=movie_id, score=rating_data.score
         )
+        db.add(rating)
         message = "Movie rated"
 
-    await db.commit()
+    try:
+        await db.flush()
+
+        await update_movie_rating_stats(movie_id, db)
+
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
+        )
+
     return {"message": message}
 
 
@@ -342,12 +356,9 @@ async def remove_movie_rating(
     """
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
-    stmt = (
-        delete(MovieRatingModel)
-        .where(
-            MovieRatingModel.user_id == current_user.id,
-            MovieRatingModel.movie_id == movie_id
-        )
+    stmt = delete(MovieRatingModel).where(
+        MovieRatingModel.user_id == current_user.id,
+        MovieRatingModel.movie_id == movie_id,
     )
 
     result = await db.execute(stmt)
@@ -355,16 +366,16 @@ async def remove_movie_rating(
     if result.rowcount == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Rating not found for this movie."
+            detail="Rating not found for this movie.",
         )
 
     try:
+        await update_movie_rating_stats(movie_id, db)
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error occurred."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
         )
 
     return None

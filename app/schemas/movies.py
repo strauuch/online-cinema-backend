@@ -45,6 +45,8 @@ class MovieShortResponseSchema(BaseModel):
     name: str
     year: int
     imdb: float
+    rating_avg: float = Field(..., description="Average rating from our users")
+    rating_count: int = Field(..., description="Total number of ratings")
     price: Decimal
     genres: List[GenreReadSchema]
 

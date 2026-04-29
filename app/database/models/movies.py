@@ -139,6 +139,8 @@ class MovieModel(Base):
     gross: Mapped[float | None] = mapped_column(Float, nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     price: Mapped[decimal.Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
+    rating_avg: Mapped[float] = mapped_column(Float, default=0.0)
+    rating_count: Mapped[int] = mapped_column(Integer, default=0)
     certification_id: Mapped[int] = mapped_column(
         ForeignKey("certifications.id"), nullable=False
     )

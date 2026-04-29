@@ -45,6 +45,9 @@ from schemas.movies import (
     GenreReadSchema,
     GenreCreateSchema,
     GenreUpdateSchema,
+    StarReadSchema,
+    StarCreateSchema,
+    StarUpdateSchema,
 )
 from schemas.pagination import Page
 
@@ -1020,4 +1023,117 @@ async def delete_comment(
         await db.rollback()
         raise HTTPException(status_code=500, detail="Database error")
 
+    return None
+
+
+@router.get(
+    "/stars/",
+    response_model=list[StarReadSchema],
+    status_code=status.HTTP_200_OK,
+    summary="[Admin] Get All Stars",
+    description="Get a simple list of stars for management purposes.",
+)
+async def get_stars(
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns all stars ordered by name.
+    """
+    stmt = select(StarModel).order_by(StarModel.name)
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+@router.post(
+    "/stars/",
+    response_model=StarReadSchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="[Admin] Create Star",
+)
+async def create_star(
+    star_data: StarCreateSchema,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Add a new star. Name must be unique.
+    """
+    new_star = StarModel(name=star_data.name)
+    db.add(new_star)
+    try:
+        await db.commit()
+        await db.refresh(new_star)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="This star already exists."
+        )
+    return new_star
+
+
+@router.patch(
+    "/stars/{star_id}/",
+    response_model=StarReadSchema,
+    status_code=status.HTTP_200_OK,
+    summary="[Admin] Update Star",
+)
+async def update_star(
+    star_id: int,
+    star_data: StarUpdateSchema,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Rename a star. Checks for name collisions.
+    """
+    star = await db.get(StarModel, star_id)
+    if not star:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Star not found."
+        )
+
+    if star_data.name:
+        star.name = star_data.name
+
+    try:
+        await db.commit()
+        await db.refresh(star)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Another star already has this name.",
+        )
+    return star
+
+
+@router.delete(
+    "/stars/{star_id}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="[Admin] Delete Star",
+)
+async def delete_star(
+    star_id: int,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Permanently remove a star. Movie links will be severed (CASCADE).
+    """
+    star = await db.get(StarModel, star_id)
+    if not star:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Star not found."
+        )
+
+    try:
+        await db.delete(star)
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error during deletion.",
+        )
     return None

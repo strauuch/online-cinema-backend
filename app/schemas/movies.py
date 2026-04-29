@@ -10,6 +10,16 @@ from database.models.enums import NotificationType
 # Schemas for user endpoints
 
 
+class GenreCreateSchema(BaseModel):
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="Unique genre name"
+    )
+
+
+class GenreUpdateSchema(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+
+
 class GenreReadSchema(BaseModel):
     id: int
     name: str
@@ -21,13 +31,13 @@ class GenreWithCountSchema(GenreReadSchema):
     movie_count: int
 
 
-class GenreCreateSchema(BaseModel):
+class StarCreateSchema(BaseModel):
     name: str = Field(
-        ..., min_length=1, max_length=100, description="Unique genre name"
+        ..., min_length=1, max_length=100, description="Full name of the star/actor"
     )
 
 
-class GenreUpdateSchema(BaseModel):
+class StarUpdateSchema(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
 
 

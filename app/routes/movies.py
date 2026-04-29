@@ -47,7 +47,7 @@ from schemas.movies import (
     GenreUpdateSchema,
     StarReadSchema,
     StarCreateSchema,
-    StarUpdateSchema,
+    StarUpdateSchema, DirectorReadSchema, DirectorCreateSchema, DirectorUpdateSchema,
 )
 from schemas.pagination import Page
 
@@ -1135,5 +1135,115 @@ async def delete_star(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error during deletion.",
+        )
+    return None
+
+
+@router.get(
+    "/directors/",
+    response_model=list[DirectorReadSchema],
+    status_code=status.HTTP_200_OK,
+    summary="[Admin] Get All Directors",
+    description="Get a list of all directors for database management."
+)
+async def get_directors(
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns a full list of directors ordered alphabetically.
+    """
+    stmt = select(DirectorModel).order_by(DirectorModel.name)
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+@router.post(
+    "/directors/",
+    response_model=DirectorReadSchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="[Admin] Create Director",
+)
+async def create_director(
+    director_data: DirectorCreateSchema,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Add a new director. Name must be unique.
+    """
+    new_director = DirectorModel(name=director_data.name)
+    db.add(new_director)
+    try:
+        await db.commit()
+        await db.refresh(new_director)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This director already exists in the database."
+        )
+    return new_director
+
+
+@router.patch(
+    "/directors/{director_id}/",
+    response_model=DirectorReadSchema,
+    status_code=status.HTTP_200_OK,
+    summary="[Admin] Update Director",
+)
+async def update_director(
+    director_id: int,
+    director_data: DirectorUpdateSchema,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update director's name.
+    """
+    director = await db.get(DirectorModel, director_id)
+    if not director:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Director not found.")
+
+    if director_data.name:
+        director.name = director_data.name
+
+    try:
+        await db.commit()
+        await db.refresh(director)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Conflict: Another director with this name already exists."
+        )
+    return director
+
+
+@router.delete(
+    "/directors/{director_id}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="[Admin] Delete Director",
+)
+async def delete_director(
+    director_id: int,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a director from the catalog.
+    """
+    director = await db.get(DirectorModel, director_id)
+    if not director:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Director not found.")
+
+    try:
+        await db.delete(director)
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete director."
         )
     return None

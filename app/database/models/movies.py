@@ -244,7 +244,7 @@ class MovieCommentModel(Base):
 
     movie: Mapped["MovieModel"] = relationship(back_populates="comments")
     user: Mapped["UserModel"] = relationship("UserModel")
-
+    likes: Mapped[list["CommentLikeModel"]] = relationship("CommentLikeModel", cascade="all, delete-orphan")
     parent: Mapped[Optional["MovieCommentModel"]] = relationship(
         "MovieCommentModel", remote_side=[id], back_populates="replies"
     )
@@ -270,6 +270,20 @@ class NotificationModel(Base):
     link_to_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     is_read: Mapped[bool] = mapped_column(default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class CommentLikeModel(Base):
+    __tablename__ = "comment_likes"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    comment_id: Mapped[int] = mapped_column(
+        ForeignKey("movie_comments.id", ondelete="CASCADE"), primary_key=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

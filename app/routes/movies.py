@@ -859,6 +859,6 @@ async def delete_comment(
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Database error.")
+        raise HTTPException(status_code=500, detail="Database error")
 
     return None

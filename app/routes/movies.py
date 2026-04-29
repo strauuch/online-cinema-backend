@@ -321,6 +321,55 @@ async def rate_movie(
     return {"message": message}
 
 
+@router.delete(
+    "/{movie_uuid}/rating/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove Movie Rating",
+    description="Allows a user to remove their previously set rating for a movie.",
+    responses={
+        204: {"description": "Rating removed successfully."},
+        401: {"description": "Unauthorized."},
+        404: {"description": "Not Found - Movie or rating not found."},
+    },
+)
+async def remove_movie_rating(
+    movie_uuid: UUID,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a user's rating for a specific movie.
+    """
+    movie_id = await get_movie_id_by_uuid(movie_uuid, db)
+
+    stmt = (
+        delete(MovieRatingModel)
+        .where(
+            MovieRatingModel.user_id == current_user.id,
+            MovieRatingModel.movie_id == movie_id
+        )
+    )
+
+    result = await db.execute(stmt)
+
+    if result.rowcount == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rating not found for this movie."
+        )
+
+    try:
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error occurred."
+        )
+
+    return None
+
+
 @router.post(
     "/{movie_uuid}/vote/",
     response_model=MessageResponseSchema,

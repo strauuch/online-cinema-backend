@@ -42,6 +42,9 @@ from schemas.movies import (
     MovieCreateSchema,
     MovieUpdateSchema,
     CommentUpdateSchema,
+    GenreReadSchema,
+    GenreCreateSchema,
+    GenreUpdateSchema,
 )
 from schemas.pagination import Page
 
@@ -638,6 +641,102 @@ async def like_comment(
 # =============================================================================
 # MODERATOR AND ADMIN ROUTES
 # =============================================================================
+
+
+@router.post(
+    "/genres/",
+    response_model=GenreReadSchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create Genre",
+    description="Add a new genre to the database. Restricted to staff.",
+)
+async def create_genre(
+    genre_data: GenreCreateSchema,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a unique genre. Raises 400 if the name already exists.
+    """
+    new_genre = GenreModel(name=genre_data.name)
+    db.add(new_genre)
+    try:
+        await db.commit()
+        await db.refresh(new_genre)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Genre with this name already exists.",
+        )
+    return new_genre
+
+
+@router.patch(
+    "/genres/{genre_id}/",
+    response_model=GenreReadSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Update Genre",
+)
+async def update_genre(
+    genre_id: int,
+    genre_data: GenreUpdateSchema,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Update genre name. Validates uniqueness and existence.
+    """
+    genre = await db.get(GenreModel, genre_id)
+    if not genre:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Genre not found."
+        )
+
+    if genre_data.name:
+        genre.name = genre_data.name
+
+    try:
+        await db.commit()
+        await db.refresh(genre)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Genre with this name already exists.",
+        )
+    return genre
+
+
+@router.delete(
+    "/genres//{genre_id}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete Genre",
+)
+async def delete_genre(
+    genre_id: int,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a genre. Movie associations are removed automatically via CASCADE.
+    """
+    genre = await db.get(GenreModel, genre_id)
+    if not genre:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Genre not found."
+        )
+
+    try:
+        await db.delete(genre)
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete genre.",
+        )
+    return None
 
 
 @router.post(

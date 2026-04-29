@@ -21,6 +21,16 @@ class GenreWithCountSchema(GenreReadSchema):
     movie_count: int
 
 
+class GenreCreateSchema(BaseModel):
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="Unique genre name"
+    )
+
+
+class GenreUpdateSchema(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+
+
 class StarReadSchema(BaseModel):
     id: int
     name: str = Field(..., max_length=100)

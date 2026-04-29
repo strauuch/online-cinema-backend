@@ -47,14 +47,27 @@ class StarReadSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class DirectorCreateSchema(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
+
 
 class DirectorUpdateSchema(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
 
+
 class DirectorReadSchema(StarReadSchema):
     pass
+
+
+class CertificationCreateSchema(BaseModel):
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="e.g., PG-13, R, G"
+    )
+
+
+class CertificationUpdateSchema(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
 
 
 class CertificationReadSchema(BaseModel):

@@ -47,7 +47,13 @@ from schemas.movies import (
     GenreUpdateSchema,
     StarReadSchema,
     StarCreateSchema,
-    StarUpdateSchema, DirectorReadSchema, DirectorCreateSchema, DirectorUpdateSchema,
+    StarUpdateSchema,
+    DirectorReadSchema,
+    DirectorCreateSchema,
+    DirectorUpdateSchema,
+    CertificationReadSchema,
+    CertificationCreateSchema,
+    CertificationUpdateSchema,
 )
 from schemas.pagination import Page
 
@@ -1144,11 +1150,11 @@ async def delete_star(
     response_model=list[DirectorReadSchema],
     status_code=status.HTTP_200_OK,
     summary="[Admin] Get All Directors",
-    description="Get a list of all directors for database management."
+    description="Get a list of all directors for database management.",
 )
 async def get_directors(
     current_user: UserModel = Depends(get_current_staff_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Returns a full list of directors ordered alphabetically.
@@ -1167,7 +1173,7 @@ async def get_directors(
 async def create_director(
     director_data: DirectorCreateSchema,
     current_user: UserModel = Depends(get_current_staff_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Add a new director. Name must be unique.
@@ -1181,7 +1187,7 @@ async def create_director(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This director already exists in the database."
+            detail="This director already exists in the database.",
         )
     return new_director
 
@@ -1196,14 +1202,16 @@ async def update_director(
     director_id: int,
     director_data: DirectorUpdateSchema,
     current_user: UserModel = Depends(get_current_staff_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Update director's name.
     """
     director = await db.get(DirectorModel, director_id)
     if not director:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Director not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Director not found."
+        )
 
     if director_data.name:
         director.name = director_data.name
@@ -1215,7 +1223,7 @@ async def update_director(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Conflict: Another director with this name already exists."
+            detail="Conflict: Another director with this name already exists.",
         )
     return director
 
@@ -1228,14 +1236,16 @@ async def update_director(
 async def delete_director(
     director_id: int,
     current_user: UserModel = Depends(get_current_staff_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Delete a director from the catalog.
     """
     director = await db.get(DirectorModel, director_id)
     if not director:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Director not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Director not found."
+        )
 
     try:
         await db.delete(director)
@@ -1244,6 +1254,126 @@ async def delete_director(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete director."
+            detail="Failed to delete director.",
+        )
+    return None
+
+
+@router.get(
+    "/certifications/",
+    response_model=list[CertificationReadSchema],
+    status_code=status.HTTP_200_OK,
+    summary="[Admin] Get All Certifications",
+)
+async def list_certifications(
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns a list of all movie certifications (age ratings).
+    """
+    stmt = select(CertificationModel).order_by(CertificationModel.name)
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+@router.post(
+    "/certifications/",
+    response_model=CertificationReadSchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="[Admin] Create Certification",
+)
+async def create_certification(
+    cert_data: CertificationCreateSchema,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Add a new age rating certification (e.g., '18+').
+    """
+    new_cert = CertificationModel(name=cert_data.name)
+    db.add(new_cert)
+    try:
+        await db.commit()
+        await db.refresh(new_cert)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Certification with this name already exists.",
+        )
+    return new_cert
+
+
+@router.patch(
+    "/certifications/{cert_id}/",
+    response_model=CertificationReadSchema,
+    status_code=status.HTTP_200_OK,
+    summary="[Admin] Update Certification",
+)
+async def update_certification(
+    cert_id: int,
+    cert_data: CertificationUpdateSchema,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Update the name of an existing certification.
+    """
+    cert = await db.get(CertificationModel, cert_id)
+    if not cert:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Certification not found."
+        )
+
+    if cert_data.name:
+        cert.name = cert_data.name
+
+    try:
+        await db.commit()
+        await db.refresh(cert)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Conflict: This certification name is already taken.",
+        )
+    return cert
+
+
+@router.delete(
+    "/certifications/{cert_id}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="[Admin] Delete Certification",
+)
+async def delete_certification(
+    cert_id: int,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Remove a certification.
+    Warning: This may fail if movies are still linked to this certification.
+    """
+    cert = await db.get(CertificationModel, cert_id)
+    if not cert:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Certification not found."
+        )
+
+    try:
+        await db.delete(cert)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete: this certification is currently assigned to movies.",
+        )
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error occurred.",
         )
     return None

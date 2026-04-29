@@ -704,3 +704,39 @@ async def update_movie(
         )
 
     return movie
+
+
+@router.delete(
+    "/comments/{comment_id}/",
+    status_code=status.HTTP_200_OK,
+    summary="Delete Any Comment (Staff Only)",
+)
+async def delete_comment_by_staff(
+    comment_id: int,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(MovieCommentModel).where(MovieCommentModel.id == comment_id)
+    comment = (await db.execute(stmt)).scalar_one_or_none()
+
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    if comment.user_id != current_user.id:
+        notification = NotificationModel(
+            user_id=comment.user_id,
+            notification_type=NotificationType.SYSTEM,
+            content=f"Your comment in movie was removed by moderator for violating rules.",
+            link_to_id=None,
+        )
+        db.add(notification)
+
+    await db.delete(comment)
+
+    try:
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete comment")
+
+    return {"message": "Comment removed and user notified"}

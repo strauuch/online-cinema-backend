@@ -7,8 +7,6 @@ from database.validators import movies_validators
 
 from database.models.enums import NotificationType
 
-# Schemas for user endpoints
-
 
 class GenreCreateSchema(BaseModel):
     name: str = Field(
@@ -171,9 +169,6 @@ class CommentReadSchema(BaseModel):
         return self.user.email
 
     model_config = ConfigDict(from_attributes=True)
-
-
-# Schemas for moderator and admin endpoints
 
 
 class MovieCreateSchema(BaseModel):

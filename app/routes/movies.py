@@ -2,7 +2,7 @@ from uuid import UUID
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, status, HTTPException, Query
-from sqlalchemy import select, func, or_, delete, and_, update
+from sqlalchemy import select, func, or_, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -20,7 +20,7 @@ from database.models.movies import (
     MovieVoteModel,
     MovieRatingModel,
     MovieCommentModel,
-    NotificationModel,
+    NotificationModel, CommentLikeModel,
 )
 from schemas.accounts import MessageResponseSchema
 from schemas.movies import (
@@ -172,7 +172,7 @@ async def list_movies(
 
     offset = (page - 1) * size
     result = await db.execute(stmt.limit(size).offset(offset))
-    movies = result.scalars().all()
+    movies = list(result.scalars().all())
 
     return Page(
         items=movies,
@@ -269,10 +269,13 @@ async def remove_favorite(
         MovieFavoriteModel.movie_id == movie_id,
     )
     result = await db.execute(stmt)
-    await db.commit()
 
     if result.rowcount == 0:
+        await db.rollback()
         raise HTTPException(status_code=404, detail="Movie was not in your favorites")
+
+    await db.commit()
+
 
     return {"message": "Movie removed from favorites"}
 
@@ -363,6 +366,16 @@ async def add_comment(
 ):
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
+    parent_comment = None
+    if comment_data.parent_id:
+        parent_comment = await db.get(MovieCommentModel, comment_data.parent_id)
+
+        if not parent_comment or parent_comment.movie_id != movie_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Parent comment not found or belongs to another movie"
+            )
+
     new_comment = MovieCommentModel(
         user_id=current_user.id,
         movie_id=movie_id,
@@ -370,22 +383,15 @@ async def add_comment(
         parent_id=comment_data.parent_id,
     )
     db.add(new_comment)
-    await db.flush()
 
-    if comment_data.parent_id:
-        parent_comment = await db.get(MovieCommentModel, comment_data.parent_id)
-        if (
-            parent_comment
-            and parent_comment.user_id != current_user.id
-            and parent_comment.movie_id == movie_id
-        ):
-            notification = NotificationModel(
-                user_id=parent_comment.user_id,
-                notification_type=NotificationType.COMMENT_REPLY,
-                content=f"User {current_user.email} replied to your comment",
-                link_to_id=str(movie_uuid),
-            )
-            db.add(notification)
+    if parent_comment and parent_comment.user_id != current_user.id:
+        notification = NotificationModel(
+            user_id=parent_comment.user_id,
+            notification_type=NotificationType.COMMENT_REPLY,
+            content=f"User {current_user.email} replied to your comment",
+            link_to_id=str(movie_uuid),
+        )
+        db.add(notification)
 
     await db.commit()
     return {"message": "Comment added successfully"}
@@ -445,7 +451,7 @@ async def list_movie_comments(
 
     stmt = (
         select(MovieCommentModel)
-        .options(joinedload(MovieCommentModel.user))
+        .options(joinedload(MovieCommentModel.user), selectinload(MovieCommentModel.likes))
         .where(MovieCommentModel.movie_id == movie_id)
         .order_by(MovieCommentModel.created_at.desc())
     )
@@ -455,7 +461,7 @@ async def list_movie_comments(
 
     offset = (page - 1) * size
     result = await db.execute(stmt.limit(size).offset(offset))
-    comments = result.scalars().all()
+    comments = list(result.scalars().all())
 
     return Page(
         items=comments,
@@ -464,3 +470,44 @@ async def list_movie_comments(
         size=size,
         total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
     )
+
+@router.post("/comments/{comment_id}/like/", response_model=MessageResponseSchema)
+async def like_comment(
+    comment_id: int,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        select(MovieCommentModel)
+        .options(joinedload(MovieCommentModel.movie))
+        .where(MovieCommentModel.id == comment_id)
+    )
+    comment = (await db.execute(stmt)).scalar_one_or_none()
+
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    like_stmt = select(CommentLikeModel).where(
+        CommentLikeModel.user_id == current_user.id,
+        CommentLikeModel.comment_id == comment_id
+    )
+    existing_like = await db.scalar(like_stmt)
+
+    if existing_like:
+        await db.delete(existing_like)
+        await db.commit()
+        return {"message": "Like removed"}
+
+    db.add(CommentLikeModel(user_id=current_user.id, comment_id=comment_id))
+
+    if comment.user_id != current_user.id:
+        notification = NotificationModel(
+            user_id=comment.user_id,
+            notification_type=NotificationType.COMMENT_LIKE,
+            content=f"User {current_user.email} liked your comment",
+            link_to_id=str(comment.movie.uuid)
+        )
+        db.add(notification)
+
+    await db.commit()
+    return {"message": "Comment liked"}

@@ -121,6 +121,13 @@ class CommentReadSchema(BaseModel):
 
     @computed_field
     @property
+    def likes_count(self) -> int:
+        return len(self.likes) if hasattr(self, "likes") else 0
+
+    likes: List[dict] = Field(exclude=True, default=[])
+
+    @computed_field
+    @property
     def email(self) -> str:
         return self.user.email
 

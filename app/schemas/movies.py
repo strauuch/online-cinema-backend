@@ -7,7 +7,6 @@ from database.validators import movies_validators
 
 from database.models.enums import NotificationType
 
-
 # Schemas for user endpoints
 
 
@@ -62,20 +61,6 @@ class MovieDetailResponseSchema(MovieShortResponseSchema):
     certification: CertificationReadSchema
     stars: List[StarReadSchema]
     directors: List[DirectorReadSchema]
-
-
-class MovieUpdateSchema(BaseModel):
-
-    name: Optional[str] = None
-    year: Optional[int] = None
-    time: Optional[int] = None
-    imdb: Optional[float] = None
-    price: Optional[Decimal] = None
-    description: Optional[str] = None
-    certification_id: Optional[int] = None
-    genre_ids: Optional[List[int]] = None
-    star_ids: Optional[List[int]] = None
-    director_ids: Optional[List[int]] = None
 
 
 class RatingCreateSchema(BaseModel):
@@ -182,3 +167,39 @@ class MovieCreateSchema(BaseModel):
     @classmethod
     def check_time(cls, v):
         return movies_validators.validate_movie_duration(v)
+
+
+class MovieUpdateSchema(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=250)
+    year: Optional[int] = None
+    time: Optional[int] = None
+    imdb: Optional[float] = None
+    description: Optional[str] = Field(None, min_length=10)
+    price: Optional[Decimal] = None
+    certification_id: Optional[int] = None
+    genre_ids: Optional[List[int]] = None
+    star_ids: Optional[List[int]] = None
+    director_ids: Optional[List[int]] = None
+    meta_score: Optional[float] = None
+    gross: Optional[float] = None
+    votes: Optional[int] = Field(None, ge=0)
+
+    @field_validator("year")
+    @classmethod
+    def check_year(cls, v):
+        return movies_validators.validate_movie_year(v) if v is not None else v
+
+    @field_validator("imdb")
+    @classmethod
+    def check_imdb(cls, v):
+        return movies_validators.validate_imdb_rating(v) if v is not None else v
+
+    @field_validator("price")
+    @classmethod
+    def check_price(cls, v):
+        return movies_validators.validate_movie_price(v) if v is not None else v
+
+    @field_validator("time")
+    @classmethod
+    def check_time(cls, v):
+        return movies_validators.validate_movie_duration(v) if v is not None else v

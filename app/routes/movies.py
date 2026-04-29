@@ -22,7 +22,8 @@ from database.models.movies import (
     MovieRatingModel,
     MovieCommentModel,
     NotificationModel,
-    CommentLikeModel, CertificationModel,
+    CommentLikeModel,
+    CertificationModel,
 )
 from schemas.accounts import MessageResponseSchema
 from schemas.movies import (
@@ -33,7 +34,9 @@ from schemas.movies import (
     VoteCreateSchema,
     CommentCreateSchema,
     NotificationReadSchema,
-    CommentReadSchema, MovieCreateSchema,
+    CommentReadSchema,
+    MovieCreateSchema,
+    MovieUpdateSchema,
 )
 from schemas.pagination import Page
 
@@ -521,6 +524,7 @@ async def like_comment(
 # MODERATOR AND ADMIN ROUTES
 # =============================================================================
 
+
 @router.post(
     "/",
     response_model=MovieDetailResponseSchema,
@@ -528,7 +532,9 @@ async def like_comment(
     summary="Create New Movie",
     description="Add a new movie to the catalog. Only Admins and Moderators can perform this action.",
     responses={
-        400: {"description": "Bad Request - Integrity constraint violation or missing relations."},
+        400: {
+            "description": "Bad Request - Integrity constraint violation or missing relations."
+        },
         401: {"description": "Unauthorized."},
         403: {"description": "Forbidden - Insufficient permissions."},
         500: {"description": "Internal Server Error - Database failure."},
@@ -549,21 +555,27 @@ async def create_movie(
     if not cert:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Certification with id {movie_data.certification_id} not found."
+            detail=f"Certification with id {movie_data.certification_id} not found.",
         )
 
     genres_stmt = select(GenreModel).where(GenreModel.id.in_(movie_data.genre_ids))
     stars_stmt = select(StarModel).where(StarModel.id.in_(movie_data.star_ids))
-    directors_stmt = select(DirectorModel).where(DirectorModel.id.in_(movie_data.director_ids))
+    directors_stmt = select(DirectorModel).where(
+        DirectorModel.id.in_(movie_data.director_ids)
+    )
 
     genres = (await db.execute(genres_stmt)).scalars().all()
     stars = (await db.execute(stars_stmt)).scalars().all()
     directors = (await db.execute(directors_stmt)).scalars().all()
 
     if len(genres) != len(movie_data.genre_ids):
-        raise HTTPException(status_code=400, detail="One or more genre IDs are invalid.")
+        raise HTTPException(
+            status_code=400, detail="One or more genre IDs are invalid."
+        )
 
-    movie_fields = movie_data.model_dump(exclude={"genre_ids", "star_ids", "director_ids"})
+    movie_fields = movie_data.model_dump(
+        exclude={"genre_ids", "star_ids", "director_ids"}
+    )
     new_movie = MovieModel(**movie_fields)
 
     new_movie.genres = list(genres)
@@ -580,13 +592,112 @@ async def create_movie(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Movie with this name, year and duration already exists."
+            detail="Movie with this name, year and duration already exists.",
         )
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error occurred while creating the movie."
+            detail="Database error occurred while creating the movie.",
         )
 
     return new_movie
+
+
+@router.patch(
+    "/{movie_uuid}/",
+    response_model=MovieDetailResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Update Movie Details",
+    description="Partially update movie information, including relationships. Only staff can perform this.",
+    responses={
+        400: {"description": "Bad Request - Invalid data or constraint violation."},
+        401: {"description": "Unauthorized."},
+        403: {"description": "Forbidden - Staff access required."},
+        404: {"description": "Not Found - Movie not found."},
+        500: {"description": "Internal Server Error."},
+    },
+)
+async def update_movie(
+    movie_uuid: UUID,
+    movie_data: MovieUpdateSchema,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+) -> MovieModel:
+    """
+    Update an existing movie.
+    - **Partial Update**: Only fields provided in the request body will be changed.
+    - **Relationships**: If genre_ids/star_ids/director_ids are provided, the entire relationship is replaced.
+    """
+    stmt = (
+        select(MovieModel)
+        .options(
+            selectinload(MovieModel.genres),
+            selectinload(MovieModel.stars),
+            selectinload(MovieModel.directors),
+            joinedload(MovieModel.certification),
+        )
+        .where(MovieModel.uuid == movie_uuid)
+    )
+    result = await db.execute(stmt)
+    movie = result.scalars().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found."
+        )
+
+    relationship_configs = [
+        ("genre_ids", GenreModel, "genres"),
+        ("star_ids", StarModel, "stars"),
+        ("director_ids", DirectorModel, "directors"),
+    ]
+
+    for field_name, model_cls, attr_name in relationship_configs:
+        ids = getattr(movie_data, field_name)
+        if ids is not None:
+            if not ids:
+                setattr(movie, attr_name, [])
+                continue
+
+            objs_stmt = select(model_cls).where(model_cls.id.in_(ids))
+            found_objs = (await db.execute(objs_stmt)).scalars().all()
+
+            if len(found_objs) != len(ids):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Some IDs in {field_name} are invalid."
+                )
+            setattr(movie, attr_name, list(found_objs))
+
+    if movie_data.certification_id is not None:
+        cert = await db.get(CertificationModel, movie_data.certification_id)
+        if not cert:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid certification_id.")
+        movie.certification_id = movie_data.certification_id
+
+    update_data = movie_data.model_dump(
+        exclude_unset=True,
+        exclude={"genre_ids", "star_ids", "director_ids", "certification_id"},
+    )
+
+    for key, value in update_data.items():
+        setattr(movie, key, value)
+
+    try:
+        await db.commit()
+        await db.refresh(movie, ["genres", "stars", "directors", "certification"])
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Update failed: Unique constraint violation (name/year/time).",
+        )
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error during update.",
+        )
+
+    return movie

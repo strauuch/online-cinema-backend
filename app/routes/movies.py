@@ -707,6 +707,51 @@ async def update_movie(
 
 
 @router.delete(
+    "/{movie_uuid}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete Movie",
+    description="Permanently remove a movie and all its associated data (ratings, comments, etc.).",
+    responses={
+        204: {"description": "Movie deleted successfully."},
+        401: {"description": "Unauthorized."},
+        403: {"description": "Forbidden - Staff access required."},
+        404: {"description": "Not Found - Movie not found."},
+        500: {"description": "Internal Server Error."},
+    },
+)
+async def delete_movie(
+    movie_uuid: UUID,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a movie by its UUID.
+    - **Cascade**: Automatically deletes related favorites, ratings, and comments due to model configuration.
+    - **Security**: Only Admins and Moderators can perform this.
+    """
+    stmt = select(MovieModel).where(MovieModel.uuid == movie_uuid)
+    result = await db.execute(stmt)
+    movie = result.scalars().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found."
+        )
+
+    try:
+        await db.delete(movie)
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete the movie from the database.",
+        )
+
+    return None
+
+
+@router.delete(
     "/comments/{comment_id}/",
     status_code=status.HTTP_200_OK,
     summary="Delete Any Comment (Staff Only)",

@@ -2,9 +2,13 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, ConfigDict, computed_field
+from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator
+from database.validators import movies_validators
 
 from database.models.enums import NotificationType
+
+
+# Schemas for user endpoints
 
 
 class GenreReadSchema(BaseModel):
@@ -110,6 +114,12 @@ class CommentAuthorSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CommentLikeReadSchema(BaseModel):
+    user_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CommentReadSchema(BaseModel):
     id: int
     user_id: int
@@ -117,14 +127,14 @@ class CommentReadSchema(BaseModel):
     parent_id: Optional[int] = None
     created_at: datetime
 
+    likes: List[CommentLikeReadSchema] = Field(exclude=True, default=[])
+
     user: CommentAuthorSchema = Field(exclude=True)
 
     @computed_field
     @property
     def likes_count(self) -> int:
-        return len(self.likes) if hasattr(self, "likes") else 0
-
-    likes: List[dict] = Field(exclude=True, default=[])
+        return len(self.likes)
 
     @computed_field
     @property
@@ -132,3 +142,43 @@ class CommentReadSchema(BaseModel):
         return self.user.email
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Schemas for moderator and admin endpoints
+
+
+class MovieCreateSchema(BaseModel):
+    name: str = Field(..., min_length=1, max_length=250)
+    year: int
+    time: int
+    imdb: float
+    description: str = Field(..., min_length=10)
+    price: Decimal
+    certification_id: int
+    genre_ids: List[int] = Field(..., min_items=1)
+    star_ids: List[int] = Field(..., min_items=1)
+    director_ids: List[int] = Field(..., min_items=1)
+
+    meta_score: Optional[float] = None
+    gross: Optional[float] = None
+    votes: int = Field(0, ge=0)
+
+    @field_validator("year")
+    @classmethod
+    def check_year(cls, v):
+        return movies_validators.validate_movie_year(v)
+
+    @field_validator("imdb")
+    @classmethod
+    def check_imdb(cls, v):
+        return movies_validators.validate_imdb_rating(v)
+
+    @field_validator("price")
+    @classmethod
+    def check_price(cls, v):
+        return movies_validators.validate_movie_price(v)
+
+    @field_validator("time")
+    @classmethod
+    def check_time(cls, v):
+        return movies_validators.validate_movie_duration(v)

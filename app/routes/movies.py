@@ -666,14 +666,17 @@ async def update_movie(
             if len(found_objs) != len(ids):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Some IDs in {field_name} are invalid."
+                    detail=f"Some IDs in {field_name} are invalid.",
                 )
             setattr(movie, attr_name, list(found_objs))
 
     if movie_data.certification_id is not None:
         cert = await db.get(CertificationModel, movie_data.certification_id)
         if not cert:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid certification_id.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid certification_id.",
+            )
         movie.certification_id = movie_data.certification_id
 
     update_data = movie_data.model_dump(

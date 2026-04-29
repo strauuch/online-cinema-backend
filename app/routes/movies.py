@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from core.dependencies import get_current_user, get_current_staff_user
 from database import get_db
 from database.models.accounts import UserModel
-from database.models.enums import NotificationType
+from database.models.enums import NotificationType, UserGroupEnum
 from database.models.movies import (
     MovieModel,
     GenreModel,
@@ -808,35 +808,57 @@ async def delete_movie(
 
 @router.delete(
     "/comments/{comment_id}/",
-    status_code=status.HTTP_200_OK,
-    summary="Delete Any Comment (Staff Only)",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete Comment",
+    description="Users can delete their own comments. Staff can delete any comment.",
+    responses={
+        204: {"description": "Deleted successfully."},
+        403: {"description": "Forbidden - Access denied."},
+        404: {"description": "Not Found."},
+    },
 )
-async def delete_comment_by_staff(
+async def delete_comment(
     comment_id: int,
-    current_user: UserModel = Depends(get_current_staff_user),
+    current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    Delete a comment.
+    - **Users**: Can delete only their own.
+    - **Staff**: Can delete any comment (logic for notification can be added here).
+    """
     stmt = select(MovieCommentModel).where(MovieCommentModel.id == comment_id)
-    comment = (await db.execute(stmt)).scalar_one_or_none()
+    result = await db.execute(stmt)
+    comment = result.scalars().first()
 
     if not comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found."
+        )
 
-    if comment.user_id != current_user.id:
+    is_owner = comment.user_id == current_user.id
+    is_staff = current_user.group.name in [UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR]
+
+    if not (is_owner or is_staff):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to delete this comment.",
+        )
+
+    if is_staff and not is_owner:
         notification = NotificationModel(
             user_id=comment.user_id,
             notification_type=NotificationType.SYSTEM,
-            content=f"Your comment in movie was removed by moderator for violating rules.",
+            content="Your comment was removed by a moderator.",
             link_to_id=None,
         )
         db.add(notification)
 
-    await db.delete(comment)
-
     try:
+        await db.delete(comment)
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to delete comment")
+        raise HTTPException(status_code=500, detail="Database error.")
 
-    return {"message": "Comment removed and user notified"}
+    return None

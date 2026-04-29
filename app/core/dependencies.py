@@ -134,3 +134,17 @@ async def get_current_admin_user(
             detail="Admin access required.",
         )
     return current_user
+
+
+async def get_current_staff_user(
+    current_user: UserModel = Depends(get_current_user),
+) -> UserModel:
+    """
+    Dependency to ensure the current authenticated user is either an Admin or a Moderator.
+    """
+    if current_user.group.name not in [UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Staff access required (Admin or Moderator).",
+        )
+    return current_user

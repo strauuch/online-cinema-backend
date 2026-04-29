@@ -112,8 +112,8 @@ async def list_movies(
         None, ge=0, le=10, description="Minimum IMDb rating"
     ),
     genre_id: Optional[int] = Query(None, description="Filter by genre ID"),
-    sort_by: str = Query("year", regex="^(year|price|imdb|popularity)$"),
-    order: str = Query("desc", regex="^(asc|desc)$"),
+    sort_by: str = Query("year", pattern="^(year|price|imdb|popularity)$"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
     only_favorites: bool = Query(False),
     current_user: Optional[UserModel] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

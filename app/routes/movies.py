@@ -9,6 +9,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from core.dependencies import get_current_user
 from database import get_db
 from database.models.accounts import UserModel
+from database.models.enums import NotificationType
 from database.models.movies import (
     MovieModel,
     GenreModel,
@@ -18,6 +19,8 @@ from database.models.movies import (
     MovieFavoriteModel,
     MovieVoteModel,
     MovieRatingModel,
+    MovieCommentModel,
+    NotificationModel,
 )
 from schemas.accounts import MessageResponseSchema
 from schemas.movies import (
@@ -26,6 +29,9 @@ from schemas.movies import (
     GenreWithCountSchema,
     RatingCreateSchema,
     VoteCreateSchema,
+    CommentCreateSchema,
+    NotificationReadSchema,
+    CommentReadSchema,
 )
 from schemas.pagination import Page
 
@@ -346,3 +352,115 @@ async def vote_movie(
 
     await db.commit()
     return {"message": message}
+
+
+@router.post("/{movie_uuid}/comments/", status_code=status.HTTP_201_CREATED)
+async def add_comment(
+    movie_uuid: UUID,
+    comment_data: CommentCreateSchema,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    movie_id = await get_movie_id_by_uuid(movie_uuid, db)
+
+    new_comment = MovieCommentModel(
+        user_id=current_user.id,
+        movie_id=movie_id,
+        text=comment_data.text,
+        parent_id=comment_data.parent_id,
+    )
+    db.add(new_comment)
+    await db.flush()
+
+    if comment_data.parent_id:
+        parent_comment = await db.get(MovieCommentModel, comment_data.parent_id)
+        if (
+            parent_comment
+            and parent_comment.user_id != current_user.id
+            and parent_comment.movie_id == movie_id
+        ):
+            notification = NotificationModel(
+                user_id=parent_comment.user_id,
+                notification_type=NotificationType.COMMENT_REPLY,
+                content=f"User {current_user.email} replied to your comment",
+                link_to_id=str(movie_uuid),
+            )
+            db.add(notification)
+
+    await db.commit()
+    return {"message": "Comment added successfully"}
+
+
+@router.get("/notifications/", response_model=List[NotificationReadSchema])
+async def get_my_notifications(
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        select(NotificationModel)
+        .where(NotificationModel.user_id == current_user.id)
+        .order_by(NotificationModel.created_at.desc())
+    )
+
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+@router.patch("/notifications/{notif_id}/read/")
+async def mark_as_read(
+    notif_id: int,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        update(NotificationModel)
+        .where(
+            NotificationModel.id == notif_id,
+            NotificationModel.user_id == current_user.id,
+        )
+        .values(is_read=True)
+    )
+
+    result = await db.execute(stmt)
+    await db.commit()
+
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+
+    return {"message": "Marked as read"}
+
+
+@router.get(
+    "/{movie_uuid}/comments/",
+    response_model=Page[CommentReadSchema],
+    status_code=status.HTTP_200_OK,
+)
+async def list_movie_comments(
+    movie_uuid: UUID,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    movie_id = await get_movie_id_by_uuid(movie_uuid, db)
+
+    stmt = (
+        select(MovieCommentModel)
+        .options(joinedload(MovieCommentModel.user))
+        .where(MovieCommentModel.movie_id == movie_id)
+        .order_by(MovieCommentModel.created_at.desc())
+    )
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total_count = await db.scalar(count_stmt) or 0
+
+    offset = (page - 1) * size
+    result = await db.execute(stmt.limit(size).offset(offset))
+    comments = result.scalars().all()
+
+    return Page(
+        items=comments,
+        total=total_count,
+        page=page,
+        size=size,
+        total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
+    )

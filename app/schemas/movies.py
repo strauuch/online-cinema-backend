@@ -94,6 +94,10 @@ class CommentCreateSchema(BaseModel):
     parent_id: Optional[int] = None
 
 
+class CommentUpdateSchema(BaseModel):
+    text: str = Field(..., min_length=1, max_length=500)
+
+
 class CommentAuthorSchema(BaseModel):
     email: str
     model_config = ConfigDict(from_attributes=True)

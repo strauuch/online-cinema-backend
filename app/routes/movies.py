@@ -37,6 +37,7 @@ from schemas.movies import (
     CommentReadSchema,
     MovieCreateSchema,
     MovieUpdateSchema,
+    CommentUpdateSchema,
 )
 from schemas.pagination import Page
 
@@ -399,6 +400,60 @@ async def add_comment(
 
     await db.commit()
     return {"message": "Comment added successfully"}
+
+
+@router.patch(
+    "/comments/{comment_id}/",
+    response_model=CommentReadSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Update Own Comment",
+    description="Allows a user to edit their own comment text.",
+    responses={
+        403: {"description": "Forbidden - Not your comment."},
+        404: {"description": "Not Found - Comment not found."},
+    },
+)
+async def update_my_comment(
+    comment_id: int,
+    comment_data: CommentUpdateSchema,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Update comment text.
+    - **Ownership**: Only the author can edit the comment.
+    """
+    stmt = (
+        select(MovieCommentModel)
+        .options(joinedload(MovieCommentModel.user))
+        .where(MovieCommentModel.id == comment_id)
+    )
+    result = await db.execute(stmt)
+    comment = result.scalars().first()
+
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found."
+        )
+
+    if comment.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only edit your own comments.",
+        )
+
+    comment.text = comment_data.text
+
+    try:
+        await db.commit()
+        await db.refresh(comment)
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error."
+        )
+
+    return comment
 
 
 @router.get("/notifications/", response_model=List[NotificationReadSchema])

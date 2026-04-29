@@ -244,7 +244,9 @@ class MovieCommentModel(Base):
 
     movie: Mapped["MovieModel"] = relationship(back_populates="comments")
     user: Mapped["UserModel"] = relationship("UserModel")
-    likes: Mapped[list["CommentLikeModel"]] = relationship("CommentLikeModel", cascade="all, delete-orphan")
+    likes: Mapped[list["CommentLikeModel"]] = relationship(
+        "CommentLikeModel", cascade="all, delete-orphan"
+    )
     parent: Mapped[Optional["MovieCommentModel"]] = relationship(
         "MovieCommentModel", remote_side=[id], back_populates="replies"
     )

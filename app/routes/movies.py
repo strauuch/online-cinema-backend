@@ -20,7 +20,8 @@ from database.models.movies import (
     MovieVoteModel,
     MovieRatingModel,
     MovieCommentModel,
-    NotificationModel, CommentLikeModel,
+    NotificationModel,
+    CommentLikeModel,
 )
 from schemas.accounts import MessageResponseSchema
 from schemas.movies import (
@@ -276,7 +277,6 @@ async def remove_favorite(
 
     await db.commit()
 
-
     return {"message": "Movie removed from favorites"}
 
 
@@ -373,7 +373,7 @@ async def add_comment(
         if not parent_comment or parent_comment.movie_id != movie_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Parent comment not found or belongs to another movie"
+                detail="Parent comment not found or belongs to another movie",
             )
 
     new_comment = MovieCommentModel(
@@ -451,7 +451,9 @@ async def list_movie_comments(
 
     stmt = (
         select(MovieCommentModel)
-        .options(joinedload(MovieCommentModel.user), selectinload(MovieCommentModel.likes))
+        .options(
+            joinedload(MovieCommentModel.user), selectinload(MovieCommentModel.likes)
+        )
         .where(MovieCommentModel.movie_id == movie_id)
         .order_by(MovieCommentModel.created_at.desc())
     )
@@ -471,6 +473,7 @@ async def list_movie_comments(
         total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
     )
 
+
 @router.post("/comments/{comment_id}/like/", response_model=MessageResponseSchema)
 async def like_comment(
     comment_id: int,
@@ -489,7 +492,7 @@ async def like_comment(
 
     like_stmt = select(CommentLikeModel).where(
         CommentLikeModel.user_id == current_user.id,
-        CommentLikeModel.comment_id == comment_id
+        CommentLikeModel.comment_id == comment_id,
     )
     existing_like = await db.scalar(like_stmt)
 
@@ -505,7 +508,7 @@ async def like_comment(
             user_id=comment.user_id,
             notification_type=NotificationType.COMMENT_LIKE,
             content=f"User {current_user.email} liked your comment",
-            link_to_id=str(comment.movie.uuid)
+            link_to_id=str(comment.movie.uuid),
         )
         db.add(notification)
 

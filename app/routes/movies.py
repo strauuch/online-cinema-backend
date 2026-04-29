@@ -3,10 +3,11 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy import select, func, or_, delete, update
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from core.dependencies import get_current_user
+from core.dependencies import get_current_user, get_current_staff_user
 from database import get_db
 from database.models.accounts import UserModel
 from database.models.enums import NotificationType
@@ -21,7 +22,7 @@ from database.models.movies import (
     MovieRatingModel,
     MovieCommentModel,
     NotificationModel,
-    CommentLikeModel,
+    CommentLikeModel, CertificationModel,
 )
 from schemas.accounts import MessageResponseSchema
 from schemas.movies import (
@@ -32,7 +33,7 @@ from schemas.movies import (
     VoteCreateSchema,
     CommentCreateSchema,
     NotificationReadSchema,
-    CommentReadSchema,
+    CommentReadSchema, MovieCreateSchema,
 )
 from schemas.pagination import Page
 
@@ -514,3 +515,78 @@ async def like_comment(
 
     await db.commit()
     return {"message": "Comment liked"}
+
+
+# =============================================================================
+# MODERATOR AND ADMIN ROUTES
+# =============================================================================
+
+@router.post(
+    "/",
+    response_model=MovieDetailResponseSchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create New Movie",
+    description="Add a new movie to the catalog. Only Admins and Moderators can perform this action.",
+    responses={
+        400: {"description": "Bad Request - Integrity constraint violation or missing relations."},
+        401: {"description": "Unauthorized."},
+        403: {"description": "Forbidden - Insufficient permissions."},
+        500: {"description": "Internal Server Error - Database failure."},
+    },
+)
+async def create_movie(
+    movie_data: MovieCreateSchema,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+) -> MovieModel:
+    """
+    Create a new movie record with associations.
+    - **Validation**: Checks if certification, genres, stars, and directors exist.
+    - **Constraints**: Ensures name/year/time uniqueness.
+    - **Security**: Restricted to staff (Admin/Moderator).
+    """
+    cert = await db.get(CertificationModel, movie_data.certification_id)
+    if not cert:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Certification with id {movie_data.certification_id} not found."
+        )
+
+    genres_stmt = select(GenreModel).where(GenreModel.id.in_(movie_data.genre_ids))
+    stars_stmt = select(StarModel).where(StarModel.id.in_(movie_data.star_ids))
+    directors_stmt = select(DirectorModel).where(DirectorModel.id.in_(movie_data.director_ids))
+
+    genres = (await db.execute(genres_stmt)).scalars().all()
+    stars = (await db.execute(stars_stmt)).scalars().all()
+    directors = (await db.execute(directors_stmt)).scalars().all()
+
+    if len(genres) != len(movie_data.genre_ids):
+        raise HTTPException(status_code=400, detail="One or more genre IDs are invalid.")
+
+    movie_fields = movie_data.model_dump(exclude={"genre_ids", "star_ids", "director_ids"})
+    new_movie = MovieModel(**movie_fields)
+
+    new_movie.genres = list(genres)
+    new_movie.stars = list(stars)
+    new_movie.directors = list(directors)
+
+    db.add(new_movie)
+
+    try:
+        await db.flush()
+        await db.commit()
+        await db.refresh(new_movie, ["genres", "stars", "directors", "certification"])
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Movie with this name, year and duration already exists."
+        )
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error occurred while creating the movie."
+        )
+
+    return new_movie

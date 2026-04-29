@@ -155,9 +155,9 @@ class MovieCreateSchema(BaseModel):
     description: str = Field(..., min_length=10)
     price: Decimal
     certification_id: int
-    genre_ids: List[int] = Field(..., min_items=1)
-    star_ids: List[int] = Field(..., min_items=1)
-    director_ids: List[int] = Field(..., min_items=1)
+    genre_ids: List[int] = Field(..., min_length=1)
+    star_ids: List[int] = Field(..., min_length=1)
+    director_ids: List[int] = Field(..., min_length=1)
 
     meta_score: Optional[float] = None
     gross: Optional[float] = None

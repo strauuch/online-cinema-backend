@@ -286,17 +286,27 @@ async def remove_favorite(
 ):
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
-    stmt = delete(MovieFavoriteModel).where(
-        MovieFavoriteModel.user_id == current_user.id,
-        MovieFavoriteModel.movie_id == movie_id,
+    stmt = (
+        delete(MovieFavoriteModel)
+        .where(
+            MovieFavoriteModel.user_id == current_user.id,
+            MovieFavoriteModel.movie_id == movie_id,
+        )
+        .returning(MovieFavoriteModel.movie_id)
     )
+
     result = await db.execute(stmt)
+    deleted_id = result.scalar_one_or_none()
 
-    if result.rowcount == 0:
+
+    if deleted_id is None:
+        raise HTTPException(status_code=404, detail="Not in favorites")
+
+    try:
+        await db.commit()
+    except SQLAlchemyError:
         await db.rollback()
-        raise HTTPException(status_code=404, detail="Movie was not in your favorites")
-
-    await db.commit()
+        raise HTTPException(status_code=500, detail="Database error")
 
     return {"message": "Movie removed from favorites"}
 
@@ -368,14 +378,19 @@ async def remove_movie_rating(
     """
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
-    stmt = delete(MovieRatingModel).where(
-        MovieRatingModel.user_id == current_user.id,
-        MovieRatingModel.movie_id == movie_id,
+    stmt = (
+        delete(MovieRatingModel)
+        .where(
+            MovieRatingModel.user_id == current_user.id,
+            MovieRatingModel.movie_id == movie_id,
+        )
+        .returning(MovieRatingModel.id)
     )
 
     result = await db.execute(stmt)
+    deleted_id = result.scalar_one_or_none()
 
-    if result.rowcount == 0:
+    if deleted_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Rating not found for this movie.",
@@ -556,13 +571,20 @@ async def mark_as_read(
             NotificationModel.user_id == current_user.id,
         )
         .values(is_read=True)
+        .returning(NotificationModel.id)
     )
 
     result = await db.execute(stmt)
-    await db.commit()
+    updated_id = result.scalar_one_or_none()
 
-    if result.rowcount == 0:
+    if updated_id is None:
         raise HTTPException(status_code=404, detail="Notification not found")
+
+    try:
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Database error")
 
     return {"message": "Marked as read"}
 
@@ -718,7 +740,7 @@ async def update_genre(
 
 
 @router.delete(
-    "/genres/{genre_id}/",
+    "/genres//{genre_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete Genre",
 )

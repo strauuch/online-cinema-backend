@@ -152,7 +152,10 @@ async def list_movies(
 
     if only_favorites:
         if not current_user:
-            raise HTTPException(status_code=401, detail="Log in to see favorites")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Log in to see favorites",
+            )
         stmt = stmt.join(MovieFavoriteModel).where(
             MovieFavoriteModel.user_id == current_user.id
         )
@@ -298,15 +301,18 @@ async def remove_favorite(
     result = await db.execute(stmt)
     deleted_id = result.scalar_one_or_none()
 
-
     if deleted_id is None:
-        raise HTTPException(status_code=404, detail="Not in favorites")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Not in favorites"
+        )
 
     try:
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
+        )
 
     return {"message": "Movie removed from favorites"}
 
@@ -578,13 +584,17 @@ async def mark_as_read(
     updated_id = result.scalar_one_or_none()
 
     if updated_id is None:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found"
+        )
 
     try:
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
+        )
 
     return {"message": "Marked as read"}
 
@@ -641,7 +651,9 @@ async def like_comment(
     comment = (await db.execute(stmt)).scalar_one_or_none()
 
     if not comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found"
+        )
 
     like_stmt = select(CommentLikeModel).where(
         CommentLikeModel.user_id == current_user.id,
@@ -815,7 +827,8 @@ async def create_movie(
 
     if len(genres) != len(movie_data.genre_ids):
         raise HTTPException(
-            status_code=400, detail="One or more genre IDs are invalid."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more genre IDs are invalid.",
         )
 
     movie_fields = movie_data.model_dump(
@@ -1049,7 +1062,9 @@ async def delete_comment(
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
+        )
 
     return None
 

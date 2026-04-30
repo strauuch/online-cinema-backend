@@ -718,7 +718,7 @@ async def update_genre(
 
 
 @router.delete(
-    "/genres//{genre_id}/",
+    "/genres/{genre_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete Genre",
 )

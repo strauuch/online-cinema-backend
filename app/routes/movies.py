@@ -64,6 +64,7 @@ logger = logging.getLogger(__name__)
 
 
 async def get_movie_id_by_uuid(movie_uuid: UUID, db: AsyncSession) -> int:
+    """Resolves a public Movie UUID to an internal database Integer ID."""
     stmt = select(MovieModel.id).where(MovieModel.uuid == movie_uuid)
     result = await db.execute(stmt)
     movie_id = result.scalar_one_or_none()
@@ -97,12 +98,7 @@ async def list_genres(
     page: int = Query(1, ge=1, description="Current page number"),
     size: int = Query(10, ge=1, le=100, description="Items per page"),
 ) -> Page[GenreWithCountSchema]:
-    """
-    Returns all genres with the count of movies in each.
-    - **Logic**: Performs a LEFT OUTER JOIN on the movies_genres link table.
-    - **Grouping**: Groups by Genre ID to aggregate the count.
-    - **Sorting**: Most populated genres appear first.
-    """
+    """Retrieves all genres with the total count of movies associated with each."""
     logger.debug("Fetching all genres with movie counts")
 
     stmt = (
@@ -171,13 +167,7 @@ async def list_movies(
     current_user: Optional[UserModel] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Page[MovieShortResponseSchema]:
-    """
-    Main catalog endpoint:
-    - **Pagination**: Calculates total items and pages.
-    - **Search**: Multi-column search with ILIKE.
-    - **Filtering**: Year, IMDb, and Genre support.
-    - **Sorting**: Maps 'popularity' to 'votes' internally.
-    """
+    """Provides a paginated list of movies with multi-criteria filtering and full-text search."""
     logger.info(
         f"Movie list requested. Page: {page}, Size: {size}, Query: '{q}', Sort: {sort_by} {order}"
     )
@@ -276,8 +266,7 @@ async def get_movie_detail(
     movie_uuid: UUID, db: AsyncSession = Depends(get_db)
 ) -> MovieDetailResponseSchema:
     """
-    Fetches a single movie by its public UUID.
-    - **Joined Loads**: Optimized to fetch genres, stars, directors, and certification in one go.
+    Retrieves full information about a specific movie by its public UUID.
     """
     logger.info(f"Fetching movie details for UUID: {movie_uuid}")
 
@@ -325,9 +314,7 @@ async def add_favorite(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Add movie to favorites.
-    """
+    """Adds a movie to the user's personal favorites list."""
     logger.debug(f"User {current_user.id} attempting to add movie {movie_uuid} to favorites")
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
@@ -364,9 +351,7 @@ async def remove_favorite(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Remove movie from favorites.
-    """
+    """Removes a movie from the user's personal favorites list."""
     logger.debug(f"Process 'remove_favorite' started for user {current_user.id}, movie {movie_uuid}")
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
@@ -414,6 +399,7 @@ async def rate_movie(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Sets or updates a numerical rating (1-10) for a movie and updates global stats."""
     logger.debug(f"User {current_user.id} rating movie {movie_uuid} with score {rating_data.score}")
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
@@ -470,9 +456,7 @@ async def remove_movie_rating(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Delete a user's rating for a specific movie.
-    """
+    """Deletes the user's rating for a movie and triggers a global stats recalculation."""
     logger.debug(f"Initiating rating removal for user {current_user.id} on movie {movie_uuid}")
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
@@ -526,9 +510,7 @@ async def vote_movie(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Vote on a movie.
-    """
+    """Casts or updates a binary vote (like/dislike) for a movie."""
     logger.debug(f"User {current_user.id} is voting for movie {movie_uuid} (is_like={vote_data.is_like})")
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
@@ -577,7 +559,7 @@ async def add_comment(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Add a new comment to a movie."""
+    """Posts a new comment or a reply to an existing comment for a specific movie."""
     logger.info(f"User {current_user.id} is adding a comment to movie {movie_uuid}")
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
@@ -644,9 +626,7 @@ async def update_my_comment(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update comment text.
-    """
+    """Edits the text content of a comment owned by the current user."""
     logger.debug(f"User {current_user.id} is attempting to update comment {comment_id}")
     stmt = (
         select(MovieCommentModel)
@@ -690,7 +670,7 @@ async def get_my_notifications(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get notifications for the current user."""
+    """Retrieves a list of all notifications for the authenticated user."""
     logger.debug(f"User {current_user.id} requested notifications list")
     stmt = (
         select(NotificationModel)
@@ -709,7 +689,7 @@ async def mark_as_read(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Make notification read."""
+    """Marks a specific notification as read, validating ownership first."""
     logger.debug(f"User {current_user.id} marking notification {notif_id} as read")
     stmt = (
         update(NotificationModel)
@@ -754,7 +734,7 @@ async def list_movie_comments(
     size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """List comments for a movie, paginated. """
+    """Returns a paginated list of comments for a specific movie, including likes and user info."""
     logger.debug(f"Fetching comments for movie {movie_uuid} (page={page}, size={size})")
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
@@ -803,7 +783,7 @@ async def like_comment(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Endpoint to like comments by users."""
+    """Toggles a like on a comment and notifies the author if it's a new like."""
     logger.debug(f"User {current_user.id} toggling like on comment {comment_id}")
     stmt = (
         select(MovieCommentModel)
@@ -876,9 +856,7 @@ async def create_genre(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Create a unique genre. Raises 400 if the name already exists.
-    """
+    """Creates a new unique genre in the database. Restricted to staff users."""
     logger.info(f"Staff user {current_user.id} is creating a new genre: '{genre_data.name}'")
     new_genre = GenreModel(name=genre_data.name)
     db.add(new_genre)
@@ -917,9 +895,7 @@ async def update_genre(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update genre name. Validates uniqueness and existence.
-    """
+    """Updates the name of an existing genre, ensuring the new name remains unique."""
     logger.debug(f"Staff user {current_user.id} initiated update for genre_id: {genre_id}")
     genre = await db.get(GenreModel, genre_id)
     if not genre:
@@ -972,9 +948,7 @@ async def delete_genre(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Delete a genre. Movie associations are removed automatically via CASCADE.
-    """
+    """Permanently deletes a genre by ID. Movie-genre associations are cleaned via cascade."""
     logger.info(f"Staff user {current_user.id} is attempting to delete genre ID: {genre_id}")
     genre = await db.get(GenreModel, genre_id)
     if not genre:
@@ -1021,12 +995,7 @@ async def create_movie(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ) -> MovieModel:
-    """
-    Create a new movie record with associations.
-    - **Validation**: Checks if certification, genres, stars, and directors exist.
-    - **Constraints**: Ensures name/year/time uniqueness.
-    - **Security**: Restricted to staff (Admin/Moderator).
-    """
+    """Creates a new movie record and validates all related entity IDs (genres, stars, etc.)."""
     logger.info(f"Staff user {current_user.id} is creating movie: '{movie_data.name}'")
 
     cert = await db.get(CertificationModel, movie_data.certification_id)
@@ -1108,11 +1077,7 @@ async def update_movie(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ) -> MovieModel:
-    """
-    Update an existing movie.
-    - **Partial Update**: Only fields provided in the request body will be changed.
-    - **Relationships**: If genre_ids/star_ids/director_ids are provided, the entire relationship is replaced.
-    """
+    """Partially updates movie details and replaces specific relationships if IDs are provided."""
     logger.info(f"Staff user {current_user.id} initiated update for movie UUID: {movie_uuid}")
 
     stmt = (
@@ -1216,11 +1181,7 @@ async def delete_movie(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Delete a movie by its UUID.
-    - **Cascade**: Automatically deletes related favorites, ratings, and comments due to model configuration.
-    - **Security**: Only Admins and Moderators can perform this.
-    """
+    """Removes a movie by UUID, automatically clearing related ratings, comments, and favorites."""
     logger.info(f"Staff user {current_user.id} is attempting to delete movie UUID: {movie_uuid}")
 
     stmt = select(MovieModel).where(MovieModel.uuid == movie_uuid)
@@ -1271,11 +1232,7 @@ async def delete_comment(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Delete a comment.
-    - **Users**: Can delete only their own.
-    - **Staff**: Can delete any comment (logic for notification can be added here).
-    """
+    """Deletes a comment. Owners can delete their own; staff can delete any and notify the user."""
     logger.debug(f"User {current_user.id} initiated deletion of comment {comment_id}")
 
     stmt = select(MovieCommentModel).where(MovieCommentModel.id == comment_id)
@@ -1341,9 +1298,7 @@ async def get_stars(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Returns a paginated list of stars ordered by name.
-    """
+    """Returns a paginated list of all actors (stars) ordered alphabetically by name."""
     logger.info(f"Staff user {current_user.id} requested stars list. Page: {page}, Size: {size}")
 
     try:
@@ -1389,9 +1344,7 @@ async def create_star(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Add a new star. Name must be unique.
-    """
+    """Adds a new actor to the database. Ensures the name is unique."""
     logger.info(f"Staff user {current_user.id} creating star: '{star_data.name}'")
 
     new_star = StarModel(name=star_data.name)
@@ -1422,9 +1375,7 @@ async def update_star(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Rename a star. Checks for name collisions.
-    """
+    """Updates an actor's name after validating it doesn't conflict with existing records."""
     logger.debug(f"User {current_user.id} updating star {star_id}")
 
     star = await db.get(StarModel, star_id)
@@ -1470,9 +1421,7 @@ async def delete_star(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Permanently remove a star. Movie links will be severed (CASCADE).
-    """
+    """Permanently deletes an actor record and severs all movie associations."""
     logger.info(f"Staff user {current_user.id} initiated deletion for star ID: {star_id}")
 
     star = await db.get(StarModel, star_id)
@@ -1516,9 +1465,7 @@ async def get_directors(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Returns a paginated list of directors ordered alphabetically.
-    """
+    """Retrieves a paginated list of directors for administrative management."""
     logger.info(f"Staff user {current_user.id} fetching directors. Page: {page}, Size: {size}")
 
     try:
@@ -1563,9 +1510,7 @@ async def create_director(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Add a new director. Name must be unique.
-    """
+    """Creates a new director record. Raises a conflict error if the name already exists."""
     logger.info(f"Staff user {current_user.id} initiated director creation: '{director_data.name}'")
 
     new_director = DirectorModel(name=director_data.name)
@@ -1597,9 +1542,7 @@ async def update_director(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update director's name.
-    """
+    """Renames an existing director and performs a uniqueness check on the new name."""
     logger.debug(f"User {current_user.id} requested update for director {director_id}")
 
     director = await db.get(DirectorModel, director_id)
@@ -1637,9 +1580,7 @@ async def delete_director(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Delete a director from the catalog.
-    """
+    """Removes a director from the catalog by their internal ID."""
     logger.info(f"Staff user {current_user.id} initiated deletion for director ID: {director_id}")
 
     director = await db.get(DirectorModel, director_id)
@@ -1682,9 +1623,7 @@ async def list_certifications(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 )-> Page[CertificationReadSchema]:
-    """
-    Returns a paginated list of all movie certifications (age ratings).
-    """
+    """Provides a paginated list of available age ratings and certifications."""
     logger.debug(f"User {current_user.id} is fetching certifications list")
 
     try:
@@ -1730,9 +1669,7 @@ async def create_certification(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Add a new age rating certification (e.g., '18+').
-    """
+    """Registers a new age certification (e.g., 'PG-13', '18+') in the system."""
     logger.info(f"Staff user {current_user.id} is creating a new certification: '{cert_data.name}'")
 
     new_cert = CertificationModel(name=cert_data.name)
@@ -1770,9 +1707,7 @@ async def update_certification(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update the name of an existing certification.
-    """
+    """Modifies the name of an existing age rating certification."""
     logger.debug(f"User {current_user.id} requested update for certification {cert_id}")
     cert = await db.get(CertificationModel, cert_id)
     if not cert:
@@ -1816,10 +1751,7 @@ async def delete_certification(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Remove a certification.
-    Warning: This may fail if movies are still linked to this certification.
-    """
+    """Deletes a certification, provided no movies are currently linked to it."""
     logger.info(f"Staff user {current_user.id} is attempting to delete certification ID: {cert_id}")
     cert = await db.get(CertificationModel, cert_id)
     if not cert:

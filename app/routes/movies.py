@@ -86,15 +86,17 @@ async def get_movie_id_by_uuid(movie_uuid: UUID, db: AsyncSession) -> int:
     "/genres/",
     response_model=List[GenreWithCountSchema],
     status_code=status.HTTP_200_OK,
-    summary="Get All Genres",
+    summary="Get All Genres (Paginated)",
     description=(
-        "Retrieve a complete list of genres available in the catalog. "
-        "Each genre includes a `movie_count` showing how many movies are associated with it. "
+        "Retrieve a paginated list of genres available in the catalog. "
+        "Each genre includes a `movie_count` showing how many movies are associated with it."
     ),
 )
 async def list_genres(
     db: AsyncSession = Depends(get_db),
-):
+    page: int = Query(1, ge=1, description="Current page number"),
+    size: int = Query(10, ge=1, le=100, description="Items per page"),
+) -> Page[GenreWithCountSchema]:
     """
     Returns all genres with the count of movies in each.
     - **Logic**: Performs a LEFT OUTER JOIN on the movies_genres link table.
@@ -115,18 +117,27 @@ async def list_genres(
     )
 
     try:
-        result = await db.execute(stmt)
+        count_stmt = select(func.count()).select_from(GenreModel)
+        total_count = await db.scalar(count_stmt) or 0
+
+        offset = (page - 1) * size
+        result = await db.execute(stmt.limit(size).offset(offset))
+        genres = result.all()
+
+        logger.info(f"Found {total_count} total genres, returning {len(genres)} for page {page}")
     except SQLAlchemyError as e:
         logger.error(f"Failed to fetch genres with counts: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500, detail="Database error during genre aggregation"
         )
 
-    genres = result.all()
-
-    logger.info(f"Retrieved {len(genres)} genres for catalog display")
-
-    return genres
+    return Page(
+        items=genres,
+        total=total_count,
+        page=page,
+        size=size,
+        total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
+    )
 
 
 @router.get(

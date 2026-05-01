@@ -1356,12 +1356,10 @@ async def get_stars(
             .limit(size)
             .offset((page - 1) * size)
         )
-
         result = await db.execute(stmt)
         stars = list(result.scalars().all())
 
         logger.info(f"Returning {len(stars)} stars (Total: {total_count}) to staff {current_user.id}")
-
         return Page(
             items=stars,
             total=total_count,

@@ -1,6 +1,7 @@
+import logging
+
 from datetime import datetime, timezone
 from typing import cast
-
 from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select, delete
@@ -54,6 +55,8 @@ from storages.interfaces import S3StorageInterface
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 # =============================================================================
 # USER ROUTES
 # =============================================================================
@@ -66,23 +69,9 @@ router = APIRouter()
     description="Register a new user with an email and password.",
     status_code=status.HTTP_201_CREATED,
     responses={
-        409: {
-            "description": "Conflict - User with this email already exists.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "A user with this email test@example.com already exists."
-                    }
-                }
-            },
-        },
+        409: {"description": "Conflict - User with this email already exists."},
         500: {
             "description": "Internal Server Error - An error occurred during user creation.",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "An error occurred during user creation."}
-                }
-            },
         },
     },
 )
@@ -98,10 +87,14 @@ async def register_user(
     - **Conflict (409)**: Email already registered.
     - **Background Task**: Activation link delivery.
     """
+    logger.info(f"Registering new user with email: {user_data.email}")
     stmt = select(UserModel).where(UserModel.email == user_data.email)
     result = await db.execute(stmt)
     existing_user = result.scalars().first()
     if existing_user:
+        logger.warning(
+            f"Registration conflict: email {user_data.email} is already taken"
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"A user with this email {user_data.email} already exists.",
@@ -110,7 +103,9 @@ async def register_user(
     stmt = select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
     result = await db.execute(stmt)
     user_group = result.scalars().first()
+
     if not user_group:
+        logger.error("Critical: Default USER group is missing in the database")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Default user group not found.",
@@ -130,12 +125,23 @@ async def register_user(
 
         await db.commit()
         await db.refresh(new_user)
+        logger.info(
+            f"User created successfully: ID {new_user.id}, Email {new_user.email}"
+        )
+
     except SQLAlchemyError as e:
         await db.rollback()
+        logger.error(
+            f"Failed to create user {user_data.email} due to DB error: {str(e)}",
+            exc_info=True,
+        )
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during user creation.",
         ) from e
+
+    logger.info(f"Enqueued activation email for: {new_user.email}")
 
     background_tasks.add_task(
         email_sender.send_activation_email, new_user.email, settings.activation_link
@@ -152,22 +158,7 @@ async def register_user(
     status_code=status.HTTP_200_OK,
     responses={
         400: {
-            "description": "Bad Request - The activation token is invalid or expired, "
-            "or the user account is already active.",
-            "content": {
-                "application/json": {
-                    "examples": {
-                        "invalid_token": {
-                            "summary": "Invalid Token",
-                            "value": {"detail": "Invalid or expired activation token."},
-                        },
-                        "already_active": {
-                            "summary": "Account Already Active",
-                            "value": {"detail": "User account is already active."},
-                        },
-                    }
-                }
-            },
+            "description": "Bad Request - The activation token is invalid or expired or the user account is already active.",
         },
     },
 )
@@ -204,6 +195,13 @@ async def activate_account(
         if token_record:
             await db.delete(token_record)
             await db.commit()
+            logger.warning(
+                f"Activation failed: token expired for user {activation_data.email}"
+            )
+        else:
+            logger.warning(
+                f"Activation failed: invalid token/email combination for {activation_data.email}"
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired activation token.",
@@ -211,6 +209,7 @@ async def activate_account(
 
     user = token_record.user
     if user.is_active:
+        logger.info(f"Activation skipped: account {user.id} is already active")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User account is already active.",
@@ -224,6 +223,10 @@ async def activate_account(
     db.add(new_profile)
 
     await db.commit()
+
+    logger.info(
+        f"User {user.id} successfully activated their account and profile created. Enqueued welcome email for {activation_data.email}"
+    )
 
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
@@ -243,21 +246,9 @@ async def activate_account(
     responses={
         400: {
             "description": "Bad Request - User account is already active.",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "User account is already active."}
-                }
-            },
         },
         500: {
             "description": "Internal Server Error - Database error.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "An error occurred during token regeneration."
-                    }
-                }
-            },
         },
     },
 )
@@ -273,16 +264,19 @@ async def resend_activation_token(
     - **Logic**: Deletes any existing tokens before creating a new one.
     - **Validation**: Only for inactive accounts.
     """
+    logger.info(f"Resend activation token requested for email: {data.email}")
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
 
     if not user:
+        logger.info(f"Resend token failed: email {data.email} not found in database")
         return MessageResponseSchema(
             message="If your email is registered, you will receive a new activation link."
         )
 
     if user.is_active:
+        logger.warning(f"Resend token failed: user {user.id} is already active")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User account is already active.",
@@ -297,13 +291,18 @@ async def resend_activation_token(
         db.add(new_token)
 
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         await db.rollback()
+        logger.error(
+            f"DB error during token regeneration for user {user.id}: {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing the request.",
         )
 
+    logger.info(f"New activation token generated and enqueued for user {user.id}")
     background_tasks.add_task(
         email_sender.send_activation_email, user.email, settings.activation_link
     )
@@ -322,9 +321,6 @@ async def resend_activation_token(
     responses={
         400: {
             "description": "Bad Request - Invalid old password or weak new password.",
-            "content": {
-                "application/json": {"example": {"detail": "Invalid old password."}}
-            },
         },
     },
 )
@@ -338,13 +334,20 @@ async def change_password(
     - **Security**: Verifies old password.
     - **Validation**: New password must be different and meet strength requirements.
     """
+    logger.info(f"Password change initiated for user {current_user.id}")
     if not current_user.verify_password(data.old_password):
+        logger.warning(
+            f"Failed password change for user {current_user.id}: invalid old password"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid old password.",
         )
 
     if data.old_password == data.new_password:
+        logger.info(
+            f"Password change rejected for user {current_user.id}: new password matches old one"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="New password must be different from the old one.",
@@ -353,13 +356,18 @@ async def change_password(
     try:
         current_user.password = data.new_password
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         await db.rollback()
+        logger.error(
+            f"DB error during password update for user {current_user.id}: {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while updating the password.",
         )
 
+    logger.info(f"Password successfully changed for user {current_user.id}")
     return MessageResponseSchema(message="Password changed successfully.")
 
 
@@ -385,11 +393,13 @@ async def request_password_reset_token(
     - **Privacy**: Returns a success message even if the user doesn't exist.
     - **Restriction**: Works only for active accounts.
     """
+    logger.info(f"Password reset requested for email: {data.email}")
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
 
     if not user or not user.is_active:
+        logger.info(f"Reset request ignored: email {data.email} not found or inactive")
         return MessageResponseSchema(
             message="If you are registered, you will receive an email with instructions."
         )
@@ -402,8 +412,12 @@ async def request_password_reset_token(
 
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
+    logger.debug(f"Generated new reset token for user {user.id}")
     await db.commit()
 
+    logger.info(f"Reset token successfully saved for user {user.id}")
+
+    logger.info(f"Enqueuing reset email to {data.email}")
     background_tasks.add_task(
         email_sender.send_password_reset_email,
         str(data.email),
@@ -426,31 +440,10 @@ async def request_password_reset_token(
             "description": (
                 "Bad Request - The provided email or token is invalid, "
                 "the token has expired, or the user account is not active."
-            ),
-            "content": {
-                "application/json": {
-                    "examples": {
-                        "invalid_email_or_token": {
-                            "summary": "Invalid Email or Token",
-                            "value": {"detail": "Invalid email or token."},
-                        },
-                        "expired_token": {
-                            "summary": "Expired Token",
-                            "value": {"detail": "Invalid email or token."},
-                        },
-                    }
-                }
-            },
+            )
         },
         500: {
             "description": "Internal Server Error - An error occurred while resetting the password.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "An error occurred while resetting the password."
-                    }
-                }
-            },
         },
     },
 )
@@ -466,10 +459,12 @@ async def reset_password(
     - **Validation**: Token must match and be within the expiration period.
     - **Success**: Token is deleted after use.
     """
+    logger.info(f"Attempting password reset completion for email: {data.email}")
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
     if not user or not user.is_active:
+        logger.warning(f"Reset failed: user {data.email} not found or inactive")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or token."
         )
@@ -482,6 +477,11 @@ async def reset_password(
         if token_record:
             await db.delete(token_record)
             await db.commit()
+            logger.warning(
+                f"Reset failed: invalid token provided for user {user.id}. Token deleted."
+            )
+        else:
+            logger.warning(f"Reset failed: no token found in DB for user {user.id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or token."
         )
@@ -490,6 +490,7 @@ async def reset_password(
     if expires_at < datetime.now(timezone.utc):
         await db.delete(token_record)
         await db.commit()
+        logger.warning(f"Reset failed: token expired for user {user.id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or token."
         )
@@ -498,13 +499,18 @@ async def reset_password(
         user.password = data.password
         await db.delete(token_record)
         await db.commit()
+        logger.info(f"Password successfully reset for user {user.id}. Token consumed.")
     except SQLAlchemyError:
         await db.rollback()
+        logger.error(
+            f"Critical error during password reset for user {user.id}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password.",
         )
 
+    logger.info(f"Enqueuing password reset confirmation email to {data.email}")
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
         str(data.email),
@@ -523,29 +529,12 @@ async def reset_password(
     responses={
         401: {
             "description": "Unauthorized - Invalid email or password.",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Invalid email or password."}
-                }
-            },
         },
         403: {
             "description": "Forbidden - User account is not activated.",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "User account is not activated."}
-                }
-            },
         },
         500: {
             "description": "Internal Server Error - An error occurred while processing the request.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "An error occurred while processing the request."
-                    }
-                }
-            },
         },
     },
 )
@@ -565,17 +554,20 @@ async def login_user(
     email = form_data.username
     password = form_data.password
 
+    logger.info(f"Login attempt for user: {email}")
     stmt = select(UserModel).filter_by(email=email)
     result = await db.execute(stmt)
     user = result.scalars().first()
 
     if not user or not user.verify_password(password):
+        logger.warning(f"Failed login attempt: invalid credentials for email {email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password.",
         )
 
     if not user.is_active:
+        logger.info(f"Login blocked: Account {user.id} is not active")
         stmt = select(ActivationTokenModel).where(
             ActivationTokenModel.user_id == user.id
         )
@@ -596,6 +588,9 @@ async def login_user(
                 new_token = ActivationTokenModel(user_id=cast(int, user.id))
                 db.add(new_token)
                 await db.commit()
+                logger.info(
+                    f"Activation token regenerated and enqueued for inactive user {user.id}"
+                )
 
                 background_tasks.add_task(
                     email_sender.send_activation_email,
@@ -606,6 +601,10 @@ async def login_user(
                 detail_msg = "Account not activated. A new activation link has been sent to your email."
             except SQLAlchemyError:
                 await db.rollback()
+                logger.error(
+                    f"DB error during activation token regeneration for user {user.id}",
+                    exc_info=True,
+                )
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Database error while regenerating token.",
@@ -629,14 +628,18 @@ async def login_user(
         db.add(refresh_token)
         await db.flush()
         await db.commit()
+        logger.debug(f"Storing new refresh token in DB for user {user.id}")
     except SQLAlchemyError:
         await db.rollback()
+        logger.error(f"Failed to save refresh token for user {user.id}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing the request.",
         )
 
     jwt_access_token = jwt_manager.create_access_token({"user_id": user.id})
+    logger.info(f"User {user.id} logged in successfully. Tokens issued.")
+
     return UserLoginResponseSchema(
         access_token=jwt_access_token,
         refresh_token=jwt_refresh_token,
@@ -652,19 +655,9 @@ async def login_user(
     responses={
         401: {
             "description": "Unauthorized - Invalid refresh token.",
-            "content": {
-                "application/json": {"example": {"detail": "Refresh token not found."}}
-            },
         },
         500: {
             "description": "Internal Server Error - An error occurred during logout.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "An error occurred while processing the request."
-                    }
-                }
-            },
         },
     },
 )
@@ -677,6 +670,7 @@ async def logout_user(
     Log out the user by revoking their refresh token.
     - **Action**: Deletes the specific RefreshToken record from the database.
     """
+    logger.info(f"Logout initiated for user {current_user.id}")
     stmt = select(RefreshTokenModel).filter_by(
         token=token_data.refresh_token, user_id=current_user.id
     )
@@ -684,6 +678,9 @@ async def logout_user(
     refresh_token_record = result.scalars().first()
 
     if not refresh_token_record:
+        logger.warning(
+            f"Logout failed: Refresh token not found or ownership mismatch for user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token not found or doesn't belong to this user.",
@@ -692,8 +689,12 @@ async def logout_user(
     try:
         await db.delete(refresh_token_record)
         await db.commit()
+        logger.info(f"User {current_user.id} logged out successfully. Session revoked.")
     except SQLAlchemyError:
         await db.rollback()
+        logger.error(
+            f"DB error during logout for user {current_user.id}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing the request.",
@@ -711,19 +712,12 @@ async def logout_user(
     responses={
         400: {
             "description": "Bad Request - The provided refresh token is invalid or expired.",
-            "content": {
-                "application/json": {"example": {"detail": "Token has expired."}}
-            },
         },
         401: {
             "description": "Unauthorized - Refresh token not found.",
-            "content": {
-                "application/json": {"example": {"detail": "Refresh token not found."}}
-            },
         },
         404: {
             "description": "Not Found - The user associated with the token does not exist.",
-            "content": {"application/json": {"example": {"detail": "User not found."}}},
         },
     },
 )
@@ -736,10 +730,12 @@ async def refresh_access_token(
     Issue a new access token using a valid refresh token.
     - **Security**: Validates token existence in DB and JWT integrity.
     """
+    logger.debug("Access token refresh requested")
     try:
         decoded_token = jwt_manager.decode_refresh_token(token_data.refresh_token)
         user_id = decoded_token.get("user_id")
     except BaseSecurityError as error:
+        logger.warning(f"JWT Refresh failed: {str(error)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error),
@@ -749,6 +745,9 @@ async def refresh_access_token(
     result = await db.execute(stmt)
     refresh_token_record = result.scalars().first()
     if not refresh_token_record:
+        logger.warning(
+            f"Refresh failed: Token not found in database (possibly revoked or reused)"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token not found.",
@@ -758,12 +757,16 @@ async def refresh_access_token(
     result = await db.execute(stmt)
     user = result.scalars().first()
     if not user:
+        logger.error(
+            f"Refresh failed: Token valid, but user {user_id} does not exist in DB"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found.",
         )
 
     new_access_token = jwt_manager.create_access_token({"user_id": user_id})
+    logger.info(f"Access token successfully refreshed for user {user_id}")
 
     return TokenRefreshResponseSchema(access_token=new_access_token)
 
@@ -786,11 +789,15 @@ async def get_me(
     Retrieve current user's full data.
     - **Inclusions**: Group details, profile info, and S3 avatar URL.
     """
+    logger.debug(f"Fetching profile data for user {current_user.id}")
     await db.refresh(current_user, ["profile"])
 
     avatar_url = ""
     if current_user.profile and current_user.profile.avatar:
+        logger.debug(f"Generating S3 URL for user {current_user.id} avatar")
         avatar_url = await s3_client.get_file_url(current_user.profile.avatar)
+
+    logger.debug(f"Profile data successfully retrieved for user {current_user.id}")
 
     response = UserMeResponseSchema.model_validate(current_user)
 
@@ -825,10 +832,12 @@ async def update_profile(
     - **Avatar**: Handles file upload to S3 storage.
     - **Storage**: Updates existing profile or creates a new one if missing.
     """
+    logger.info(f"User {current_user.id} initiated profile update")
     await db.refresh(current_user, ["profile"])
     profile = current_user.profile
 
     if not profile:
+        logger.info(f"Creating missing profile record for user {current_user.id}")
         profile = UserProfileModel(user_id=current_user.id)
         db.add(profile)
 
@@ -836,9 +845,13 @@ async def update_profile(
         avatar_path = f"avatars/user_{current_user.id}/{profile_data.avatar.filename}"
         try:
             content = await profile_data.avatar.read()
+            logger.info(
+                f"User {current_user.id} uploading new avatar: {profile_data.avatar.filename}"
+            )
             await s3_client.upload_file(file_name=avatar_path, file_data=content)
             profile.avatar = avatar_path
         except Exception:
+            logger.error(f"S3 upload failed for user {current_user.id}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Failed to upload avatar.",
@@ -846,6 +859,9 @@ async def update_profile(
 
     data_to_update = profile_data.model_dump(exclude_unset=True, exclude={"avatar"})
 
+    logger.debug(
+        f"Updating fields {list(data_to_update.keys())} for user {current_user.id}"
+    )
     for key, value in data_to_update.items():
         setattr(profile, key, value)
 
@@ -854,6 +870,10 @@ async def update_profile(
         await db.refresh(profile)
     except SQLAlchemyError:
         await db.rollback()
+        logger.error(
+            f"Failed to save profile changes for user {current_user.id} in DB",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error."
         )
@@ -864,6 +884,7 @@ async def update_profile(
 
     result = ProfileResponseSchema.model_validate(profile)
     result.avatar = avatar_url
+    logger.info(f"Profile updated successfully for user {current_user.id}")
     return result
 
 
@@ -896,21 +917,31 @@ async def list_users(
     - **Filters**: Email (ILike), Group ID, and Active status.
     - **Access**: Strictly for users with Admin group.
     """
+    logger.info(
+        f"Admin {current_user.id} requested user list (limit={limit}, offset={offset})"
+    )
     stmt = select(UserModel).options(joinedload(UserModel.group))
 
     if email_query:
+        logger.debug(f"Applying email filter: {email_query}")
         stmt = stmt.where(UserModel.email.ilike(f"%{email_query}%"))
 
     if group_id:
+        logger.debug(f"Filtering by group_id: {group_id}")
         stmt = stmt.where(UserModel.group_id == group_id)
 
     if is_active is not None:
+        logger.debug(f"Filtering by is_active status: {is_active}")
         stmt = stmt.where(UserModel.is_active == is_active)
 
     stmt = stmt.limit(limit).offset(offset).order_by(UserModel.id)
 
     result = await db.execute(stmt)
-    return result.scalars().all()
+
+    users = result.scalars().all()
+    logger.info(f"Admin {current_user.id} retrieved {len(users)} users")
+
+    return users
 
 
 @router.get(
@@ -935,6 +966,9 @@ async def get_user(
     - **Includes**: Relations with Group and Profile.
     - **Error (404)**: User does not exist.
     """
+    logger.info(
+        f"Admin {current_user.id} requested detailed view for user_id: {user_id}"
+    )
     stmt = (
         select(UserModel)
         .options(joinedload(UserModel.group), joinedload(UserModel.profile))
@@ -945,9 +979,16 @@ async def get_user(
     user = result.scalars().first()
 
     if not user:
+        logger.warning(
+            f"Admin {current_user.id} tried to access non-existent user_id: {user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
+
+    logger.info(
+        f"User details for ID {user_id} successfully sent to Admin {current_user.id}"
+    )
 
     return AdminUserDetailResponseSchema.model_validate(user)
 
@@ -972,13 +1013,20 @@ async def admin_update_user(
     [Admin] Update user account status or group.
     - **Fields**: Supports partial updates (patching) for 'is_active' and 'group_id'.
     """
+    logger.info(f"Admin {current_user.id} is patching user {user_id}")
     user = await db.get(UserModel, user_id)
     if not user:
+        logger.warning(
+            f"Admin {current_user.id} attempted to update non-existent user {user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
     update_data = data.model_dump(exclude_unset=True)
+    logger.debug(
+        f"Admin {current_user.id} update payload for user {user_id}: {update_data}"
+    )
     for key, value in update_data.items():
         setattr(user, key, value)
 
@@ -993,8 +1041,16 @@ async def admin_update_user(
         user = result.scalar_one()
     except SQLAlchemyError:
         await db.rollback()
+        logger.error(
+            f"Failed to update user {user_id} by admin {current_user.id} due to DB error",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
         )
+
+    logger.info(
+        f"Admin {current_user.id} successfully updated user {user_id}. Fields: {list(update_data.keys())}"
+    )
 
     return AdminUserUpdateResponseSchema.model_validate(user)

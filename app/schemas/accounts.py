@@ -1,10 +1,13 @@
-from datetime import date
+import logging
 
+from datetime import date
 from fastapi import UploadFile, Form, File
 from pydantic import BaseModel, field_validator, ConfigDict, EmailStr, AliasPath, Field
 
 from database.models.accounts import GenderEnum, UserGroupEnum
 from database.validators import accounts_validators as validators
+
+logger = logging.getLogger(__name__)
 
 
 class BaseEmailPasswordSchema(BaseModel):
@@ -16,6 +19,7 @@ class BaseEmailPasswordSchema(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email(cls, value):
+        logger.debug(f"Normalizing email: {value}")
         return value.lower()
 
     @field_validator("password")
@@ -108,6 +112,9 @@ class ProfileUpdateRequestSchema(BaseModel):
     @classmethod
     def validate_avatar_file(cls, v: UploadFile | None) -> UploadFile | None:
         if v is not None and v.filename:
+            logger.info(
+                f"Validating avatar upload: {v.filename}, content_type: {v.content_type}"
+            )
             validators.validate_image(v)
         return v
 
@@ -121,6 +128,9 @@ class ProfileUpdateRequestSchema(BaseModel):
         info: str = Form(None),
         avatar: UploadFile = File(None),
     ) -> "ProfileUpdateRequestSchema":
+        logger.debug(
+            f"Constructing ProfileUpdateRequest from form: {first_name} {last_name}"
+        )
         return cls(
             first_name=first_name,
             last_name=last_name,

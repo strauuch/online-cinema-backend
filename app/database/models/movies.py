@@ -1,5 +1,6 @@
-import uuid as python_uuid
 import decimal
+
+import uuid as python_uuid
 from datetime import datetime
 from typing import Optional
 

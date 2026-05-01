@@ -1,12 +1,14 @@
 import logging
+import aiosmtplib
+
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
-import aiosmtplib
 from jinja2 import Environment, FileSystemLoader
 
 from exceptions.email import BaseEmailError
 from notifications.interfaces import EmailSenderInterface
+
+logger = logging.getLogger(__name__)
 
 
 class EmailSender(EmailSenderInterface):
@@ -59,20 +61,31 @@ class EmailSender(EmailSenderInterface):
         message["To"] = recipient
         message["Subject"] = subject
         message.attach(MIMEText(html_content, "html"))
+        logger.info(f"Attempting to send email '{subject}' to {recipient}")
 
         try:
             smtp = aiosmtplib.SMTP(
                 hostname=self._hostname, port=self._port, start_tls=self._use_tls
             )
             await smtp.connect()
+            logger.debug(f"Connected to SMTP host: {self._hostname}")
             if self._use_tls:
                 await smtp.starttls()
             await smtp.login(self._email, self._password)
             await smtp.sendmail(self._email, [recipient], message.as_string())
             await smtp.quit()
+            logger.info(f"Email successfully sent to {recipient}")
         except aiosmtplib.SMTPException as error:
-            logging.error(f"Failed to send email to {recipient}: {error}")
+            logger.error(
+                f"SMTP error while sending to {recipient}: {str(error)}", exc_info=True
+            )
             raise BaseEmailError(f"Failed to send email to {recipient}: {error}")
+        except Exception as error:
+            logger.critical(
+                f"Unexpected error during email sending to {recipient}: {str(error)}",
+                exc_info=True,
+            )
+            raise BaseEmailError(f"Unexpected error: {error}")
 
     async def send_activation_email(self, email: str, activation_link: str) -> None:
         """

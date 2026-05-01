@@ -1,4 +1,4 @@
-import os
+import logging
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -17,6 +17,8 @@ from core.config import settings
 from database import get_db
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/accounts/login/")
+
+logger = logging.getLogger(__name__)
 
 
 def get_settings():
@@ -86,11 +88,16 @@ async def get_current_user(
     """
     try:
         payload = jwt_manager.decode_access_token(token)
+        logger.info(f"Token decoded for user_id: {payload.get('user_id')}")
     except TokenExpiredError:
+        logger.warning("Authentication failed: Token expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired."
         )
     except (InvalidTokenError, Exception):
+        logger.error(
+            "Authentication failed: Invalid token or unexpected error", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token."
         )
@@ -109,12 +116,14 @@ async def get_current_user(
     user = await db.scalar(stmt)
 
     if not user:
+        logger.warning(f"Authentication failed: User with ID {user_id} not found in DB")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found.",
         )
 
     if not user.is_active:
+        logger.warning(f"Access denied: User {user.email} is inactive")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is not activated.",
@@ -130,6 +139,9 @@ async def get_current_admin_user(
     Dependency to ensure the current authenticated user is an administrator.
     """
     if current_user.group.name != UserGroupEnum.ADMIN:
+        logger.warning(
+            f"Unauthorized admin access attempt by user: {current_user.email}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required.",
@@ -144,6 +156,9 @@ async def get_current_staff_user(
     Dependency to ensure the current authenticated user is either an Admin or a Moderator.
     """
     if current_user.group.name not in [UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR]:
+        logger.warning(
+            f"Unauthorized staff access attempt by user: {current_user.email}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Staff access required (Admin or Moderator).",
@@ -161,8 +176,14 @@ async def update_movie_rating_stats(movie_id: int, db: AsyncSession):
     ).where(MovieRatingModel.movie_id == movie_id)
     result = await db.execute(stmt)
     stats = result.one_or_none()
+    logger.info(f"Recalculating stats for movie_id {movie_id}. Found stats: {stats}")
 
     movie = await db.get(MovieModel, movie_id)
     if movie and stats:
         movie.rating_avg = round(float(stats.avg_score or 0.0), 1)
         movie.rating_count = int(stats.total_count or 0)
+        logger.info(
+            f"Movie {movie_id} stats updated: avg={movie.rating_avg}, count={movie.rating_count}"
+        )
+    else:
+        logger.warning(f"Failed to update stats: Movie {movie_id} not found")

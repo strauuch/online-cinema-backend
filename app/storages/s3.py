@@ -1,6 +1,7 @@
-from typing import Union
-
+import logging
 import aioboto3
+
+from typing import Union
 from botocore.exceptions import (
     BotoCoreError,
     NoCredentialsError,
@@ -10,6 +11,8 @@ from botocore.exceptions import (
 
 from exceptions.storage import S3ConnectionError, S3FileUploadError
 from storages.interfaces import S3StorageInterface
+
+logger = logging.getLogger(__name__)
 
 
 class S3StorageClient(S3StorageInterface):
@@ -50,6 +53,7 @@ class S3StorageClient(S3StorageInterface):
             S3ConnectionError: If there is a connection error with S3.
             S3FileUploadError: If the file upload fails due to a BotoCore error.
         """
+        logger.info(f"Uploading file '{file_name}' to bucket '{self._bucket_name}'")
         try:
             async with self._session.client(
                 "s3", endpoint_url=self._endpoint_url
@@ -60,9 +64,15 @@ class S3StorageClient(S3StorageInterface):
                     Body=file_data,
                     ContentType="image/jpeg",
                 )
+            logger.info(f"Successfully uploaded '{file_name}'")
         except (ConnectionError, HTTPClientError, NoCredentialsError) as e:
+            logger.critical(f"S3 Connection/Auth error: {str(e)}", exc_info=True)
             raise S3ConnectionError(f"Failed to connect to S3 storage: {str(e)}") from e
         except BotoCoreError as e:
+            logger.error(
+                f"S3 BotoCore error during upload of '{file_name}': {str(e)}",
+                exc_info=True,
+            )
             raise S3FileUploadError(f"Failed to upload to S3 storage: {str(e)}") from e
 
     async def get_file_url(self, file_name: str) -> str:

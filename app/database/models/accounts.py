@@ -1,6 +1,7 @@
+import logging
+
 from datetime import datetime, date, timedelta, timezone
 from typing import List, Optional
-
 from sqlalchemy import (
     ForeignKey,
     String,
@@ -20,6 +21,8 @@ from database.models.enums import UserGroupEnum, GenderEnum
 from database.validators import accounts_validators as validators
 from security.passwords import hash_password, verify_password
 from security.utils import generate_secure_token
+
+logger = logging.getLogger(__name__)
 
 
 class UserGroupModel(Base):
@@ -100,6 +103,7 @@ class UserModel(Base):
         """
         user = cls(email=email, group_id=group_id)
         user.password = raw_password
+        logger.info(f"New user instance created for email: {email}")
         return user
 
     @property
@@ -115,6 +119,7 @@ class UserModel(Base):
         """
         validators.validate_password_strength(raw_password)
         self._hashed_password = hash_password(raw_password)
+        logger.debug(f"Password hashed and set for user: {self.email}")
 
     def verify_password(self, raw_password: str) -> bool:
         """
@@ -217,6 +222,9 @@ class RefreshTokenModel(TokenBaseModel):
         the required attributes.
         """
         expires_at = datetime.now(timezone.utc) + timedelta(days=days_valid)
+        logger.info(
+            f"Refresh token generated for user_id {user_id}, valid until {expires_at}"
+        )
         return cls(user_id=user_id, expires_at=expires_at, token=token)
 
     def __repr__(self):

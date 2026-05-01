@@ -1,10 +1,13 @@
 import re
+import logging
+import email_validator
+
 from datetime import date
 from fastapi import UploadFile
 
-import email_validator
-
 from database.models.accounts import GenderEnum
+
+logger = logging.getLogger(__name__)
 
 
 def validate_password_strength(password: str) -> str:
@@ -45,11 +48,13 @@ def validate_image(avatar: UploadFile) -> None:
 
     content = avatar.file.read()
     if len(content) > max_file_size:
+        logger.warning(f"File upload rejected: size too large ({len(content)} bytes)")
         avatar.file.seek(0)
         raise ValueError("Image size exceeds 1 MB")
 
     allowed_types = ["image/jpeg", "image/png", "image/jpg"]
     if avatar.content_type not in allowed_types:
+        logger.warning(f"File upload rejected: unsupported type {avatar.content_type}")
         avatar.file.seek(0)
         raise ValueError(
             f"Unsupported file type: {avatar.content_type}. Use JPG or PNG."

@@ -84,7 +84,7 @@ async def get_movie_id_by_uuid(movie_uuid: UUID, db: AsyncSession) -> int:
 
 @router.get(
     "/genres/",
-    response_model=List[GenreWithCountSchema],
+    response_model=Page[GenreWithCountSchema],
     status_code=status.HTTP_200_OK,
     summary="Get All Genres (Paginated)",
     description=(
@@ -1489,27 +1489,45 @@ async def delete_star(
 
 @router.get(
     "/directors/",
-    response_model=list[DirectorReadSchema],
+    response_model=Page[DirectorReadSchema],
     status_code=status.HTTP_200_OK,
-    summary="[Admin] Get All Directors",
+    summary="[Admin] Get All Directors (Paginated)",
     description="Get a list of all directors for database management.",
 )
 async def get_directors(
+    page: int = Query(1, ge=1, description="Current page number"),
+    size: int = Query(10, ge=1, le=100, description="Items per page"),
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Returns a full list of directors ordered alphabetically.
     """
-    logger.debug(f"User {current_user.id} is fetching all directors")
+    logger.info(f"Staff user {current_user.id} fetching directors. Page: {page}, Size: {size}")
 
     try:
-        stmt = select(DirectorModel).order_by(DirectorModel.name)
+        count_stmt = select(func.count()).select_from(DirectorModel)
+        total_count = await db.scalar(count_stmt) or 0
+
+        stmt = (
+            select(DirectorModel)
+            .order_by(DirectorModel.name)
+            .limit(size)
+            .offset((page - 1) * size)
+        )
+
         result = await db.execute(stmt)
         directors = list(result.scalars().all())
 
-        logger.info(f"Dispatched {len(directors)} directors to staff user {current_user.id}")
-        return directors
+        logger.info(f"Returning {len(directors)} directors (Total: {total_count})")
+
+        return Page(
+            items=directors,
+            total=total_count,
+            page=page,
+            size=size,
+            total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
+        )
     except SQLAlchemyError as e:
         logger.error(f"Error fetching directors: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -1638,7 +1656,7 @@ async def delete_director(
 
 @router.get(
     "/certifications/",
-    response_model=list[CertificationReadSchema],
+    response_model=Page[CertificationReadSchema],
     status_code=status.HTTP_200_OK,
     summary="[Admin] Get All Certifications (Paginated)",
 )

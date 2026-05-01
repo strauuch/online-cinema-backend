@@ -1640,24 +1640,42 @@ async def delete_director(
     "/certifications/",
     response_model=list[CertificationReadSchema],
     status_code=status.HTTP_200_OK,
-    summary="[Admin] Get All Certifications",
+    summary="[Admin] Get All Certifications (Paginated)",
 )
 async def list_certifications(
+    page: int = Query(1, ge=1, description="Current page number"),
+    size: int = Query(10, ge=1, le=100, description="Items per page"),
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
-):
+)-> Page[CertificationReadSchema]:
     """
     Returns a list of all movie certifications (age ratings).
     """
     logger.debug(f"User {current_user.id} is fetching certifications list")
 
     try:
-        stmt = select(CertificationModel).order_by(CertificationModel.name)
+        count_stmt = select(func.count()).select_from(CertificationModel)
+        total_count = await db.scalar(count_stmt) or 0
+
+        stmt = (
+            select(CertificationModel)
+            .order_by(CertificationModel.name)
+            .limit(size)
+            .offset((page - 1) * size)
+        )
+
         result = await db.execute(stmt)
         certs = list(result.scalars().all())
 
-        logger.info(f"Dispatched {len(certs)} certifications to staff user {current_user.id}")
-        return certs
+        logger.info(f"Returning {len(certs)} certifications (Total: {total_count})")
+
+        return Page(
+            items=certs,
+            total=total_count,
+            page=page,
+            size=size,
+            total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
+        )
 
     except SQLAlchemyError as e:
         logger.error(f"Error fetching certifications for user {current_user.id}: {str(e)}", exc_info=True)

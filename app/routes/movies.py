@@ -1330,27 +1330,45 @@ async def delete_comment(
 
 @router.get(
     "/stars/",
-    response_model=list[StarReadSchema],
+    response_model=Page[StarReadSchema],
     status_code=status.HTTP_200_OK,
     summary="[Admin] Get All Stars",
     description="Get a simple list of stars for management purposes.",
 )
 async def get_stars(
+    page: int = Query(1, ge=1, description="Current page number"),
+    size: int = Query(10, ge=1, le=100, description="Items per page"),
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Returns all stars ordered by name.
+    Returns a paginated list of stars ordered by name.
     """
-    logger.debug(f"Staff user {current_user.id} requested all stars list")
+    logger.info(f"Staff user {current_user.id} requested stars list. Page: {page}, Size: {size}")
 
     try:
-        stmt = select(StarModel).order_by(StarModel.name)
+        count_stmt = select(func.count()).select_from(StarModel)
+        total_count = await db.scalar(count_stmt) or 0
+
+        stmt = (
+            select(StarModel)
+            .order_by(StarModel.name)
+            .limit(size)
+            .offset((page - 1) * size)
+        )
+
         result = await db.execute(stmt)
         stars = list(result.scalars().all())
 
-        logger.info(f"Full stars list (count: {len(stars)}) dispatched to staff {current_user.id}")
-        return stars
+        logger.info(f"Returning {len(stars)} stars (Total: {total_count}) to staff {current_user.id}")
+
+        return Page(
+            items=stars,
+            total=total_count,
+            page=page,
+            size=size,
+            total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
+        )
     except SQLAlchemyError as e:
         logger.error(
             f"Failed to fetch stars list for staff {current_user.id}: {str(e)}",
@@ -1501,7 +1519,7 @@ async def get_directors(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Returns a full list of directors ordered alphabetically.
+    Returns a paginated list of directors ordered alphabetically.
     """
     logger.info(f"Staff user {current_user.id} fetching directors. Page: {page}, Size: {size}")
 
@@ -1667,7 +1685,7 @@ async def list_certifications(
     db: AsyncSession = Depends(get_db),
 )-> Page[CertificationReadSchema]:
     """
-    Returns a list of all movie certifications (age ratings).
+    Returns a paginated list of all movie certifications (age ratings).
     """
     logger.debug(f"User {current_user.id} is fetching certifications list")
 

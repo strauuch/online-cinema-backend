@@ -120,7 +120,9 @@ async def list_genres(
         result = await db.execute(stmt.limit(size).offset(offset))
         genres = result.all()
 
-        logger.info(f"Found {total_count} total genres, returning {len(genres)} for page {page}")
+        logger.info(
+            f"Found {total_count} total genres, returning {len(genres)} for page {page}"
+        )
     except SQLAlchemyError as e:
         logger.error(f"Failed to fetch genres with counts: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -285,10 +287,12 @@ async def get_movie_detail(
         result = await db.execute(stmt)
         movie = result.scalars().first()
     except SQLAlchemyError as e:
-        logger.error(f"Database error while fetching movie {movie_uuid}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Database error while fetching movie {movie_uuid}: {str(e)}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An internal error occurred while fetching movie details"
+            detail="An internal error occurred while fetching movie details",
         )
 
     if not movie:
@@ -298,7 +302,9 @@ async def get_movie_detail(
             detail="Movie with provided UUID not found",
         )
 
-    logger.debug(f"Movie details for '{movie.name}' (ID: {movie.id}) successfully retrieved")
+    logger.debug(
+        f"Movie details for '{movie.name}' (ID: {movie.id}) successfully retrieved"
+    )
 
     return movie
 
@@ -315,7 +321,10 @@ async def add_favorite(
     db: AsyncSession = Depends(get_db),
 ):
     """Adds a movie to the user's personal favorites list."""
-    logger.debug(f"User {current_user.id} attempting to add movie {movie_uuid} to favorites")
+    logger.debug(
+        f"User {current_user.id} attempting to add movie {movie_uuid} to favorites"
+    )
+
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = select(MovieFavoriteModel).where(
@@ -324,18 +333,27 @@ async def add_favorite(
     )
     existing = await db.scalar(stmt)
     if existing:
-        logger.info(f"User {current_user.id} already has movie {movie_uuid} in favorites")
+        logger.info(
+            f"User {current_user.id} already has movie {movie_uuid} in favorites"
+        )
         return {"message": "Movie is already in favorites"}
 
     try:
         new_favorite = MovieFavoriteModel(user_id=current_user.id, movie_id=movie_id)
         db.add(new_favorite)
         await db.commit()
-        logger.info(f"Successfully added movie {movie_uuid} to favorites for user {current_user.id}")
+        logger.info(
+            f"Successfully added movie {movie_uuid} to favorites for user {current_user.id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
-        logger.error(f"DB Error while adding favorite for user {current_user.id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+        logger.error(
+            f"DB Error while adding favorite for user {current_user.id}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
+        )
 
     return {"message": "Movie added to favorites"}
 
@@ -352,7 +370,10 @@ async def remove_favorite(
     db: AsyncSession = Depends(get_db),
 ):
     """Removes a movie from the user's personal favorites list."""
-    logger.debug(f"Process 'remove_favorite' started for user {current_user.id}, movie {movie_uuid}")
+    logger.debug(
+        f"Process 'remove_favorite' started for user {current_user.id}, movie {movie_uuid}"
+    )
+
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = (
@@ -368,17 +389,24 @@ async def remove_favorite(
     deleted_id = result.scalar_one_or_none()
 
     if deleted_id is None:
-        logger.warning(f"Deletion failed: movie {movie_uuid} not in user {current_user.id} favorites")
+        logger.warning(
+            f"Deletion failed: movie {movie_uuid} not in user {current_user.id} favorites"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Not in favorites"
         )
 
     try:
         await db.commit()
-        logger.info(f"User {current_user.id} successfully removed movie {movie_uuid} from favorites")
+        logger.info(
+            f"User {current_user.id} successfully removed movie {movie_uuid} from favorites"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
-        logger.error(f"DB Error while removing favorite for user {current_user.id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"DB Error while removing favorite for user {current_user.id}: {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
         )
@@ -400,7 +428,10 @@ async def rate_movie(
     db: AsyncSession = Depends(get_db),
 ):
     """Sets or updates a numerical rating (1-10) for a movie and updates global stats."""
-    logger.debug(f"User {current_user.id} rating movie {movie_uuid} with score {rating_data.score}")
+    logger.debug(
+        f"User {current_user.id} rating movie {movie_uuid} with score {rating_data.score}"
+    )
+
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = select(MovieRatingModel).where(
@@ -413,14 +444,18 @@ async def rate_movie(
         old_score = rating.score
         rating.score = rating_data.score
         message = "Rating updated"
-        logger.info(f"User {current_user.id} changing score for movie {movie_id} from {old_score} to {rating_data.score}")
+        logger.info(
+            f"User {current_user.id} changing score for movie {movie_id} from {old_score} to {rating_data.score}"
+        )
     else:
         rating = MovieRatingModel(
             user_id=current_user.id, movie_id=movie_id, score=rating_data.score
         )
         db.add(rating)
         message = "Movie rated"
-        logger.info(f"User {current_user.id} set new rating for movie {movie_id}: {rating_data.score}")
+        logger.info(
+            f"User {current_user.id} set new rating for movie {movie_id}: {rating_data.score}"
+        )
 
     try:
         await db.flush()
@@ -429,10 +464,15 @@ async def rate_movie(
         await update_movie_rating_stats(movie_id, db)
 
         await db.commit()
-        logger.info(f"Successfully committed rating and stats update for movie {movie_id}")
+        logger.info(
+            f"Successfully committed rating and stats update for movie {movie_id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
-        logger.error(f"Rating operation failed for user {current_user.id}, movie {movie_id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Rating operation failed for user {current_user.id}, movie {movie_id}: {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
         )
@@ -457,7 +497,10 @@ async def remove_movie_rating(
     db: AsyncSession = Depends(get_db),
 ):
     """Deletes the user's rating for a movie and triggers a global stats recalculation."""
-    logger.debug(f"Initiating rating removal for user {current_user.id} on movie {movie_uuid}")
+    logger.debug(
+        f"Initiating rating removal for user {current_user.id} on movie {movie_uuid}"
+    )
+
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = (
@@ -473,7 +516,9 @@ async def remove_movie_rating(
     deleted_id = result.scalar_one_or_none()
 
     if deleted_id is None:
-        logger.warning(f"User {current_user.id} attempted to delete non-existent rating for movie {movie_id}")
+        logger.warning(
+            f"User {current_user.id} attempted to delete non-existent rating for movie {movie_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Rating not found for this movie.",
@@ -483,12 +528,14 @@ async def remove_movie_rating(
         logger.debug(f"Updating stats for movie {movie_id} after rating deletion")
         await update_movie_rating_stats(movie_id, db)
         await db.commit()
-        logger.info(f"Rating removed and stats recalculated for movie {movie_id} by user {current_user.id}")
+        logger.info(
+            f"Rating removed and stats recalculated for movie {movie_id} by user {current_user.id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         logger.error(
             f"Failed to complete rating removal for user {current_user.id} (movie {movie_id}): {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
@@ -511,7 +558,10 @@ async def vote_movie(
     db: AsyncSession = Depends(get_db),
 ):
     """Casts or updates a binary vote (like/dislike) for a movie."""
-    logger.debug(f"User {current_user.id} is voting for movie {movie_uuid} (is_like={vote_data.is_like})")
+    logger.debug(
+        f"User {current_user.id} is voting for movie {movie_uuid} (is_like={vote_data.is_like})"
+    )
+
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = select(MovieVoteModel).where(
@@ -521,10 +571,14 @@ async def vote_movie(
 
     try:
         if not existing_vote:
-            logger.info(f"User {current_user.id} cast a new vote for movie {movie_id}. Total votes counter incremented.")
+            logger.info(
+                f"User {current_user.id} cast a new vote for movie {movie_id}. Total votes counter incremented."
+            )
             db.add(
                 MovieVoteModel(
-                    user_id=current_user.id, movie_id=movie_id, is_like=vote_data.is_like
+                    user_id=current_user.id,
+                    movie_id=movie_id,
+                    is_like=vote_data.is_like,
                 )
             )
             update_stmt = (
@@ -535,18 +589,25 @@ async def vote_movie(
             await db.execute(update_stmt)
             message = "Vote cast"
         else:
-            logger.info(f"Updating existing vote for movie {movie_id} by user {current_user.id} to {vote_data.is_like}")
+            logger.info(
+                f"Updating existing vote for movie {movie_id} by user {current_user.id} to {vote_data.is_like}"
+            )
             existing_vote.is_like = vote_data.is_like
             message = "Vote updated"
 
         await db.commit()
-        logger.info(f"Vote successfully committed for user {current_user.id}, movie {movie_id}")
+        logger.info(
+            f"Vote successfully committed for user {current_user.id}, movie {movie_id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
-        logger.error(f"Database error while voting on movie {movie_id} by user {current_user.id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Database error while voting on movie {movie_id} by user {current_user.id}: {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while processing your vote."
+            detail="An error occurred while processing your vote.",
         )
 
     return {"message": message}
@@ -561,6 +622,7 @@ async def add_comment(
 ):
     """Posts a new comment or a reply to an existing comment for a specific movie."""
     logger.info(f"User {current_user.id} is adding a comment to movie {movie_uuid}")
+
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     parent_comment = None
@@ -568,7 +630,9 @@ async def add_comment(
         parent_comment = await db.get(MovieCommentModel, comment_data.parent_id)
 
         if not parent_comment or parent_comment.movie_id != movie_id:
-            logger.warning(f"Comment failed: User {current_user.id} provided invalid parent_id {comment_data.parent_id}")
+            logger.warning(
+                f"Comment failed: User {current_user.id} provided invalid parent_id {comment_data.parent_id}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Parent comment not found or belongs to another movie",
@@ -584,7 +648,9 @@ async def add_comment(
         db.add(new_comment)
 
         if parent_comment and parent_comment.user_id != current_user.id:
-            logger.debug(f"Creating reply notification for user {parent_comment.user_id} triggered by user {current_user.id}")
+            logger.debug(
+                f"Creating reply notification for user {parent_comment.user_id} triggered by user {current_user.id}"
+            )
             notification = NotificationModel(
                 user_id=parent_comment.user_id,
                 notification_type=NotificationType.COMMENT_REPLY,
@@ -594,16 +660,18 @@ async def add_comment(
             db.add(notification)
 
         await db.commit()
-        logger.info(f"Comment successfully added by user {current_user.id} to movie {movie_id}")
+        logger.info(
+            f"Comment successfully added by user {current_user.id} to movie {movie_id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         logger.error(
             f"DB error while adding comment for user {current_user.id}: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while saving your comment."
+            detail="An error occurred while saving your comment.",
         )
 
     return {"message": "Comment added successfully"}
@@ -628,6 +696,7 @@ async def update_my_comment(
 ):
     """Edits the text content of a comment owned by the current user."""
     logger.debug(f"User {current_user.id} is attempting to update comment {comment_id}")
+
     stmt = (
         select(MovieCommentModel)
         .options(joinedload(MovieCommentModel.user))
@@ -637,13 +706,17 @@ async def update_my_comment(
     comment = result.scalars().first()
 
     if not comment:
-        logger.warning(f"Comment update failed: comment {comment_id} not found for user {current_user.id}")
+        logger.warning(
+            f"Comment update failed: comment {comment_id} not found for user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found."
         )
 
     if comment.user_id != current_user.id:
-        logger.warning(f"Access denied: User {current_user.id} tried to edit comment {comment_id} owned by user {comment.user_id}")
+        logger.warning(
+            f"Access denied: User {current_user.id} tried to edit comment {comment_id} owned by user {comment.user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only edit your own comments.",
@@ -657,7 +730,10 @@ async def update_my_comment(
         logger.info(f"User {current_user.id} successfully updated comment {comment_id}")
     except SQLAlchemyError:
         await db.rollback()
-        logger.error(f"DB error during comment {comment_id} update by user {current_user.id}", exc_info=True)
+        logger.error(
+            f"DB error during comment {comment_id} update by user {current_user.id}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error."
         )
@@ -672,6 +748,7 @@ async def get_my_notifications(
 ):
     """Retrieves a list of all notifications for the authenticated user."""
     logger.debug(f"User {current_user.id} requested notifications list")
+
     stmt = (
         select(NotificationModel)
         .where(NotificationModel.user_id == current_user.id)
@@ -691,6 +768,7 @@ async def mark_as_read(
 ):
     """Marks a specific notification as read, validating ownership first."""
     logger.debug(f"User {current_user.id} marking notification {notif_id} as read")
+
     stmt = (
         update(NotificationModel)
         .where(
@@ -705,17 +783,23 @@ async def mark_as_read(
     updated_id = result.scalar_one_or_none()
 
     if updated_id is None:
-        logger.warning(f"Notification {notif_id} not found or not owned by user {current_user.id}")
+        logger.warning(
+            f"Notification {notif_id} not found or not owned by user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found"
         )
 
     try:
         await db.commit()
-        logger.info(f"Notification {notif_id} successfully marked as read for user {current_user.id}")
+        logger.info(
+            f"Notification {notif_id} successfully marked as read for user {current_user.id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
-        logger.error(f"Error marking notification {notif_id} as read: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error marking notification {notif_id} as read: {str(e)}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
         )
@@ -736,6 +820,7 @@ async def list_movie_comments(
 ):
     """Returns a paginated list of comments for a specific movie, including likes and user info."""
     logger.debug(f"Fetching comments for movie {movie_uuid} (page={page}, size={size})")
+
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = (
@@ -757,15 +842,17 @@ async def list_movie_comments(
         result = await db.execute(stmt.limit(size).offset(offset))
         comments = list(result.scalars().all())
 
-        logger.debug(f"Page {page} of comments for movie {movie_id} retrieved successfully")
+        logger.debug(
+            f"Page {page} of comments for movie {movie_id} retrieved successfully"
+        )
     except SQLAlchemyError as e:
         logger.error(
             f"Database error while listing comments for movie {movie_id}: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving comments"
+            detail="Error retrieving comments",
         )
 
     return Page(
@@ -785,6 +872,7 @@ async def like_comment(
 ):
     """Toggles a like on a comment and notifies the author if it's a new like."""
     logger.debug(f"User {current_user.id} toggling like on comment {comment_id}")
+
     stmt = (
         select(MovieCommentModel)
         .options(joinedload(MovieCommentModel.movie))
@@ -793,7 +881,9 @@ async def like_comment(
     comment = (await db.execute(stmt)).scalar_one_or_none()
 
     if not comment:
-        logger.warning(f"Like failed: Comment {comment_id} not found for user {current_user.id}")
+        logger.warning(
+            f"Like failed: Comment {comment_id} not found for user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found"
         )
@@ -825,12 +915,14 @@ async def like_comment(
             db.add(notification)
         await db.commit()
 
-        logger.info(f"User {current_user.id} liked comment {comment_id} (Author: {comment.user_id})")
+        logger.info(
+            f"User {current_user.id} liked comment {comment_id} (Author: {comment.user_id})"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         logger.error(
             f"Database error during like toggle for user {current_user.id} on comment {comment_id}: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
@@ -857,27 +949,37 @@ async def create_genre(
     db: AsyncSession = Depends(get_db),
 ):
     """Creates a new unique genre in the database. Restricted to staff users."""
-    logger.info(f"Staff user {current_user.id} is creating a new genre: '{genre_data.name}'")
+    logger.info(
+        f"Staff user {current_user.id} is creating a new genre: '{genre_data.name}'"
+    )
+
     new_genre = GenreModel(name=genre_data.name)
     db.add(new_genre)
 
     try:
         await db.commit()
         await db.refresh(new_genre)
-        logger.info(f"Genre '{new_genre.name}' (ID: {new_genre.id}) successfully created by user {current_user.id}")
+        logger.info(
+            f"Genre '{new_genre.name}' (ID: {new_genre.id}) successfully created by user {current_user.id}"
+        )
     except IntegrityError as e:
         await db.rollback()
-        logger.warning(f"Genre creation failed: Name '{genre_data.name}' already exists. (User: {current_user.id})")
+        logger.warning(
+            f"Genre creation failed: Name '{genre_data.name}' already exists. (User: {current_user.id})"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Genre with this name already exists.",
         )
     except Exception as e:
         await db.rollback()
-        logger.error(f"Unexpected error during genre creation by user {current_user.id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Unexpected error during genre creation by user {current_user.id}: {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An internal error occurred."
+            detail="An internal error occurred.",
         )
 
     return new_genre
@@ -896,10 +998,15 @@ async def update_genre(
     db: AsyncSession = Depends(get_db),
 ):
     """Updates the name of an existing genre, ensuring the new name remains unique."""
-    logger.debug(f"Staff user {current_user.id} initiated update for genre_id: {genre_id}")
+    logger.debug(
+        f"Staff user {current_user.id} initiated update for genre_id: {genre_id}"
+    )
+
     genre = await db.get(GenreModel, genre_id)
     if not genre:
-        logger.warning(f"Genre update failed: ID {genre_id} not found (User: {current_user.id})")
+        logger.warning(
+            f"Genre update failed: ID {genre_id} not found (User: {current_user.id})"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Genre not found."
         )
@@ -931,9 +1038,11 @@ async def update_genre(
         await db.rollback()
         logger.error(
             f"Error updating genre {genre_id} by user {current_user.id}: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error."
+        )
 
     return genre
 
@@ -949,10 +1058,15 @@ async def delete_genre(
     db: AsyncSession = Depends(get_db),
 ):
     """Permanently deletes a genre by ID. Movie-genre associations are cleaned via cascade."""
-    logger.info(f"Staff user {current_user.id} is attempting to delete genre ID: {genre_id}")
+    logger.info(
+        f"Staff user {current_user.id} is attempting to delete genre ID: {genre_id}"
+    )
+
     genre = await db.get(GenreModel, genre_id)
     if not genre:
-        logger.warning(f"Delete failed: Genre ID {genre_id} not found. (User: {current_user.id})")
+        logger.warning(
+            f"Delete failed: Genre ID {genre_id} not found. (User: {current_user.id})"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Genre not found."
         )
@@ -961,12 +1075,14 @@ async def delete_genre(
         logger.debug(f"Deleting genre object: {genre.name} (ID: {genre_id})")
         await db.delete(genre)
         await db.commit()
-        logger.info(f"Genre ID {genre_id} successfully deleted by staff user {current_user.id}")
+        logger.info(
+            f"Genre ID {genre_id} successfully deleted by staff user {current_user.id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         logger.error(
             f"Database error during genre {genre_id} deletion by user {current_user.id}: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1000,7 +1116,9 @@ async def create_movie(
 
     cert = await db.get(CertificationModel, movie_data.certification_id)
     if not cert:
-        logger.warning(f"Movie creation failed: Certification {movie_data.certification_id} not found")
+        logger.warning(
+            f"Movie creation failed: Certification {movie_data.certification_id} not found"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Certification with id {movie_data.certification_id} not found.",
@@ -1017,7 +1135,9 @@ async def create_movie(
     directors = (await db.execute(directors_stmt)).scalars().all()
 
     if len(genres) != len(movie_data.genre_ids):
-        logger.warning(f"Creation failed: User {current_user.id} provided invalid genre IDs")
+        logger.warning(
+            f"Creation failed: User {current_user.id} provided invalid genre IDs"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="One or more genre IDs are invalid.",
@@ -1038,10 +1158,14 @@ async def create_movie(
         await db.flush()
         await db.commit()
         await db.refresh(new_movie, ["genres", "stars", "directors", "certification"])
-        logger.info(f"Movie '{new_movie.name}' (ID: {new_movie.id}) successfully created by user {current_user.id}")
+        logger.info(
+            f"Movie '{new_movie.name}' (ID: {new_movie.id}) successfully created by user {current_user.id}"
+        )
     except IntegrityError:
         await db.rollback()
-        logger.warning(f"Conflict: Movie '{movie_data.name}' ({movie_data.year}) already exists in DB")
+        logger.warning(
+            f"Conflict: Movie '{movie_data.name}' ({movie_data.year}) already exists in DB"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Movie with this name, year and duration already exists.",
@@ -1078,7 +1202,9 @@ async def update_movie(
     db: AsyncSession = Depends(get_db),
 ) -> MovieModel:
     """Partially updates movie details and replaces specific relationships if IDs are provided."""
-    logger.info(f"Staff user {current_user.id} initiated update for movie UUID: {movie_uuid}")
+    logger.info(
+        f"Staff user {current_user.id} initiated update for movie UUID: {movie_uuid}"
+    )
 
     stmt = (
         select(MovieModel)
@@ -1094,7 +1220,9 @@ async def update_movie(
     movie = result.scalars().first()
 
     if not movie:
-        logger.warning(f"Update failed: Movie with UUID {movie_uuid} not found (User: {current_user.id})")
+        logger.warning(
+            f"Update failed: Movie with UUID {movie_uuid} not found (User: {current_user.id})"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found."
         )
@@ -1116,7 +1244,9 @@ async def update_movie(
             found_objs = (await db.execute(objs_stmt)).scalars().all()
 
             if len(found_objs) != len(ids):
-                logger.warning(f"User {current_user.id} provided invalid IDs in {field_name}")
+                logger.warning(
+                    f"User {current_user.id} provided invalid IDs in {field_name}"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Some IDs in {field_name} are invalid.",
@@ -1126,7 +1256,9 @@ async def update_movie(
     if movie_data.certification_id is not None:
         cert = await db.get(CertificationModel, movie_data.certification_id)
         if not cert:
-            logger.warning(f"Invalid certification_id {movie_data.certification_id} provided by user {current_user.id}")
+            logger.warning(
+                f"Invalid certification_id {movie_data.certification_id} provided by user {current_user.id}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid certification_id.",
@@ -1144,17 +1276,24 @@ async def update_movie(
     try:
         await db.commit()
         await db.refresh(movie, ["genres", "stars", "directors", "certification"])
-        logger.info(f"Movie {movie_uuid} ('{movie.name}') successfully updated by staff {current_user.id}")
+        logger.info(
+            f"Movie {movie_uuid} ('{movie.name}') successfully updated by staff {current_user.id}"
+        )
     except IntegrityError:
         await db.rollback()
-        logger.warning(f"IntegrityError: Update of movie {movie_uuid} violates unique constraints")
+        logger.warning(
+            f"IntegrityError: Update of movie {movie_uuid} violates unique constraints"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Update failed: Unique constraint violation (name/year/time).",
         )
     except SQLAlchemyError as e:
         await db.rollback()
-        logger.error(f"Critical DB error during movie {movie_uuid} update: {str(e)}", exc_info=True)
+        logger.error(
+            f"Critical DB error during movie {movie_uuid} update: {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error during update.",
@@ -1182,14 +1321,18 @@ async def delete_movie(
     db: AsyncSession = Depends(get_db),
 ):
     """Removes a movie by UUID, automatically clearing related ratings, comments, and favorites."""
-    logger.info(f"Staff user {current_user.id} is attempting to delete movie UUID: {movie_uuid}")
+    logger.info(
+        f"Staff user {current_user.id} is attempting to delete movie UUID: {movie_uuid}"
+    )
 
     stmt = select(MovieModel).where(MovieModel.uuid == movie_uuid)
     result = await db.execute(stmt)
     movie = result.scalars().first()
 
     if not movie:
-        logger.warning(f"Delete failed: Movie {movie_uuid} not found (User: {current_user.id})")
+        logger.warning(
+            f"Delete failed: Movie {movie_uuid} not found (User: {current_user.id})"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found."
         )
@@ -1201,12 +1344,14 @@ async def delete_movie(
         await db.delete(movie)
         await db.commit()
 
-        logger.info(f"Movie '{movie_name}' (UUID: {movie_uuid}) successfully deleted by staff {current_user.id}")
+        logger.info(
+            f"Movie '{movie_name}' (UUID: {movie_uuid}) successfully deleted by staff {current_user.id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         logger.error(
             f"Database error during deletion of movie {movie_uuid} by user {current_user.id}: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1240,7 +1385,9 @@ async def delete_comment(
     comment = result.scalars().first()
 
     if not comment:
-        logger.warning(f"Comment {comment_id} not found for deletion by user {current_user.id}")
+        logger.warning(
+            f"Comment {comment_id} not found for deletion by user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found."
         )
@@ -1250,15 +1397,17 @@ async def delete_comment(
 
     if not (is_owner or is_staff):
         logger.warning(
-                f"Security: User {current_user.id} blocked from deleting comment {comment_id} (Owner: {comment.user_id})"
-            )
+            f"Security: User {current_user.id} blocked from deleting comment {comment_id} (Owner: {comment.user_id})"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to delete this comment.",
         )
 
     if is_staff and not is_owner:
-        logger.info(f"Moderation action: Staff {current_user.id} is deleting comment {comment_id} by user {comment.user_id}")
+        logger.info(
+            f"Moderation action: Staff {current_user.id} is deleting comment {comment_id} by user {comment.user_id}"
+        )
         logger.debug(f"Sending moderation notification to user {comment.user_id}")
         notification = NotificationModel(
             user_id=comment.user_id,
@@ -1271,12 +1420,14 @@ async def delete_comment(
     try:
         await db.delete(comment)
         await db.commit()
-        logger.info(f"Comment {comment_id} successfully deleted by user {current_user.id}")
+        logger.info(
+            f"Comment {comment_id} successfully deleted by user {current_user.id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         logger.error(
             f"Failed to delete comment {comment_id} for user {current_user.id}: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error"
@@ -1299,7 +1450,9 @@ async def get_stars(
     db: AsyncSession = Depends(get_db),
 ):
     """Returns a paginated list of all actors (stars) ordered alphabetically by name."""
-    logger.info(f"Staff user {current_user.id} requested stars list. Page: {page}, Size: {size}")
+    logger.info(
+        f"Staff user {current_user.id} requested stars list. Page: {page}, Size: {size}"
+    )
 
     try:
         count_stmt = select(func.count()).select_from(StarModel)
@@ -1314,7 +1467,9 @@ async def get_stars(
         result = await db.execute(stmt)
         stars = list(result.scalars().all())
 
-        logger.info(f"Returning {len(stars)} stars (Total: {total_count}) to staff {current_user.id}")
+        logger.info(
+            f"Returning {len(stars)} stars (Total: {total_count}) to staff {current_user.id}"
+        )
         return Page(
             items=stars,
             total=total_count,
@@ -1325,11 +1480,11 @@ async def get_stars(
     except SQLAlchemyError as e:
         logger.error(
             f"Failed to fetch stars list for staff {current_user.id}: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error occurred while fetching stars."
+            detail="Database error occurred while fetching stars.",
         )
 
 
@@ -1392,7 +1547,9 @@ async def update_star(
     try:
         await db.commit()
         await db.refresh(star)
-        logger.info(f"Star {star_id} updated by {current_user.id}: '{old_name}' -> '{star.name}'")
+        logger.info(
+            f"Star {star_id} updated by {current_user.id}: '{old_name}' -> '{star.name}'"
+        )
     except IntegrityError:
         await db.rollback()
         logger.warning(f"Update conflict: Name '{star_data.name}' already taken")
@@ -1422,11 +1579,15 @@ async def delete_star(
     db: AsyncSession = Depends(get_db),
 ):
     """Permanently deletes an actor record and severs all movie associations."""
-    logger.info(f"Staff user {current_user.id} initiated deletion for star ID: {star_id}")
+    logger.info(
+        f"Staff user {current_user.id} initiated deletion for star ID: {star_id}"
+    )
 
     star = await db.get(StarModel, star_id)
     if not star:
-        logger.warning(f"Star ID {star_id} not found for deletion by user {current_user.id}")
+        logger.warning(
+            f"Star ID {star_id} not found for deletion by user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Star not found."
         )
@@ -1438,12 +1599,13 @@ async def delete_star(
         await db.delete(star)
         await db.commit()
 
-        logger.info(f"Star '{star_name}' (ID: {star_id}) deleted by user {current_user.id}")
+        logger.info(
+            f"Star '{star_name}' (ID: {star_id}) deleted by user {current_user.id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         logger.error(
-            f"Database error while deleting star {star_id}: {str(e)}",
-            exc_info=True
+            f"Database error while deleting star {star_id}: {str(e)}", exc_info=True
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1466,7 +1628,9 @@ async def get_directors(
     db: AsyncSession = Depends(get_db),
 ):
     """Retrieves a paginated list of directors for administrative management."""
-    logger.info(f"Staff user {current_user.id} fetching directors. Page: {page}, Size: {size}")
+    logger.info(
+        f"Staff user {current_user.id} fetching directors. Page: {page}, Size: {size}"
+    )
 
     try:
         count_stmt = select(func.count()).select_from(DirectorModel)
@@ -1495,7 +1659,7 @@ async def get_directors(
         logger.error(f"Error fetching directors: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error occurred while fetching directors."
+            detail="Database error occurred while fetching directors.",
         )
 
 
@@ -1511,7 +1675,9 @@ async def create_director(
     db: AsyncSession = Depends(get_db),
 ):
     """Creates a new director record. Raises a conflict error if the name already exists."""
-    logger.info(f"Staff user {current_user.id} initiated director creation: '{director_data.name}'")
+    logger.info(
+        f"Staff user {current_user.id} initiated director creation: '{director_data.name}'"
+    )
 
     new_director = DirectorModel(name=director_data.name)
     db.add(new_director)
@@ -1519,10 +1685,14 @@ async def create_director(
     try:
         await db.commit()
         await db.refresh(new_director)
-        logger.info(f"Director '{new_director.name}' (ID: {new_director.id}) created by user {current_user.id}")
+        logger.info(
+            f"Director '{new_director.name}' (ID: {new_director.id}) created by user {current_user.id}"
+        )
     except IntegrityError:
         await db.rollback()
-        logger.warning(f"Conflict: Director '{director_data.name}' already exists in the database")
+        logger.warning(
+            f"Conflict: Director '{director_data.name}' already exists in the database"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This director already exists in the database.",
@@ -1547,7 +1717,9 @@ async def update_director(
 
     director = await db.get(DirectorModel, director_id)
     if not director:
-        logger.warning(f"Update failed: Director {director_id} not found (User: {current_user.id})")
+        logger.warning(
+            f"Update failed: Director {director_id} not found (User: {current_user.id})"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Director not found."
         )
@@ -1559,10 +1731,14 @@ async def update_director(
     try:
         await db.commit()
         await db.refresh(director)
-        logger.info(f"Director {director_id} updated by staff {current_user.id}: '{old_name}' -> '{director.name}'")
+        logger.info(
+            f"Director {director_id} updated by staff {current_user.id}: '{old_name}' -> '{director.name}'"
+        )
     except IntegrityError:
         await db.rollback()
-        logger.warning(f"Conflict: Name '{director_data.name}' already exists (Update aborted for ID {director_id})")
+        logger.warning(
+            f"Conflict: Name '{director_data.name}' already exists (Update aborted for ID {director_id})"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Conflict: Another director with this name already exists.",
@@ -1581,11 +1757,15 @@ async def delete_director(
     db: AsyncSession = Depends(get_db),
 ):
     """Removes a director from the catalog by their internal ID."""
-    logger.info(f"Staff user {current_user.id} initiated deletion for director ID: {director_id}")
+    logger.info(
+        f"Staff user {current_user.id} initiated deletion for director ID: {director_id}"
+    )
 
     director = await db.get(DirectorModel, director_id)
     if not director:
-        logger.warning(f"Director ID {director_id} not found for deletion by user {current_user.id}")
+        logger.warning(
+            f"Director ID {director_id} not found for deletion by user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Director not found."
         )
@@ -1597,12 +1777,14 @@ async def delete_director(
         await db.delete(director)
         await db.commit()
 
-        logger.info(f"Director '{director_name}' (ID: {director_id}) deleted by user {current_user.id}")
+        logger.info(
+            f"Director '{director_name}' (ID: {director_id}) deleted by user {current_user.id}"
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         logger.error(
             f"Database error during director {director_id} deletion: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1622,7 +1804,7 @@ async def list_certifications(
     size: int = Query(10, ge=1, le=100, description="Items per page"),
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
-)-> Page[CertificationReadSchema]:
+) -> Page[CertificationReadSchema]:
     """Provides a paginated list of available age ratings and certifications."""
     logger.debug(f"User {current_user.id} is fetching certifications list")
 
@@ -1651,10 +1833,13 @@ async def list_certifications(
         )
 
     except SQLAlchemyError as e:
-        logger.error(f"Error fetching certifications for user {current_user.id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error fetching certifications for user {current_user.id}: {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error occurred while fetching certifications."
+            detail="Database error occurred while fetching certifications.",
         )
 
 
@@ -1670,27 +1855,35 @@ async def create_certification(
     db: AsyncSession = Depends(get_db),
 ):
     """Registers a new age certification (e.g., 'PG-13', '18+') in the system."""
-    logger.info(f"Staff user {current_user.id} is creating a new certification: '{cert_data.name}'")
+    logger.info(
+        f"Staff user {current_user.id} is creating a new certification: '{cert_data.name}'"
+    )
 
     new_cert = CertificationModel(name=cert_data.name)
     db.add(new_cert)
     try:
         await db.commit()
         await db.refresh(new_cert)
-        logger.info(f"Certification '{new_cert.name}' (ID: {new_cert.id}) created by user {current_user.id}")
+        logger.info(
+            f"Certification '{new_cert.name}' (ID: {new_cert.id}) created by user {current_user.id}"
+        )
     except IntegrityError:
         await db.rollback()
-        logger.warning(f"Conflict: Certification '{cert_data.name}' already exists (User: {current_user.id})")
+        logger.warning(
+            f"Conflict: Certification '{cert_data.name}' already exists (User: {current_user.id})"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Certification with this name already exists.",
         )
     except SQLAlchemyError as e:
         await db.rollback()
-        logger.error(f"Database error during certification creation: {str(e)}", exc_info=True)
+        logger.error(
+            f"Database error during certification creation: {str(e)}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal database error occurred."
+            detail="Internal database error occurred.",
         )
     return new_cert
 
@@ -1709,9 +1902,12 @@ async def update_certification(
 ):
     """Modifies the name of an existing age rating certification."""
     logger.debug(f"User {current_user.id} requested update for certification {cert_id}")
+
     cert = await db.get(CertificationModel, cert_id)
     if not cert:
-        logger.warning(f"Certification {cert_id} not found for update by user {current_user.id}")
+        logger.warning(
+            f"Certification {cert_id} not found for update by user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Certification not found."
         )
@@ -1723,10 +1919,14 @@ async def update_certification(
     try:
         await db.commit()
         await db.refresh(cert)
-        logger.info(f"Certification {cert_id} updated by {current_user.id}: '{old_name}' -> '{cert.name}'")
+        logger.info(
+            f"Certification {cert_id} updated by {current_user.id}: '{old_name}' -> '{cert.name}'"
+        )
     except IntegrityError:
         await db.rollback()
-        logger.warning(f"Update conflict: Certification name '{cert_data.name}' is already taken")
+        logger.warning(
+            f"Update conflict: Certification name '{cert_data.name}' is already taken"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Conflict: This certification name is already taken.",
@@ -1752,10 +1952,15 @@ async def delete_certification(
     db: AsyncSession = Depends(get_db),
 ):
     """Deletes a certification, provided no movies are currently linked to it."""
-    logger.info(f"Staff user {current_user.id} is attempting to delete certification ID: {cert_id}")
+    logger.info(
+        f"Staff user {current_user.id} is attempting to delete certification ID: {cert_id}"
+    )
+
     cert = await db.get(CertificationModel, cert_id)
     if not cert:
-        logger.warning(f"Certification {cert_id} not found for deletion by user {current_user.id}")
+        logger.warning(
+            f"Certification {cert_id} not found for deletion by user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Certification not found."
         )
@@ -1765,7 +1970,9 @@ async def delete_certification(
     try:
         await db.delete(cert)
         await db.commit()
-        logger.info(f"Certification '{cert_name}' (ID: {cert_id}) successfully deleted by staff {current_user.id}")
+        logger.info(
+            f"Certification '{cert_name}' (ID: {cert_id}) successfully deleted by staff {current_user.id}"
+        )
     except IntegrityError:
         await db.rollback()
         logger.warning(
@@ -1780,7 +1987,7 @@ async def delete_certification(
         await db.rollback()
         logger.error(
             f"Critical database error during certification {cert_id} deletion: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

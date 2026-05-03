@@ -87,11 +87,7 @@ async def get_movie_id_by_uuid(movie_uuid: UUID, db: AsyncSession) -> int:
     "/genres/",
     response_model=Page[GenreWithCountSchema],
     status_code=status.HTTP_200_OK,
-    summary="Get All Genres (Paginated)",
-    description=(
-        "Retrieve a paginated list of genres available in the catalog. "
-        "Each genre includes a `movie_count` showing how many movies are associated with it."
-    ),
+    summary="Get all genres (Paginated)",
 )
 async def list_genres(
     db: AsyncSession = Depends(get_db),
@@ -142,15 +138,7 @@ async def list_genres(
     "/",
     response_model=Page[MovieShortResponseSchema],
     status_code=status.HTTP_200_OK,
-    summary="Browse and Filter Movie Catalog",
-    description=(
-        "Get a paginated list of movies with advanced filtering, searching, and sorting. "
-        "Search covers title, description, stars, and directors."
-    ),
-    responses={
-        200: {"description": "Paginated list of movies returned successfully."},
-        400: {"description": "Invalid sorting attribute or filter parameters."},
-    },
+    summary="Browse and filter movie catalog",
 )
 async def list_movies(
     page: int = Query(1, ge=1, description="Current page number"),
@@ -257,12 +245,7 @@ async def list_movies(
     "/{movie_uuid}/",
     response_model=MovieDetailResponseSchema,
     status_code=status.HTTP_200_OK,
-    summary="Get Movie Details",
-    description="Retrieve comprehensive information about a movie, including cast, directors, and certification.",
-    responses={
-        200: {"description": "Movie details found."},
-        404: {"description": "Movie not found."},
-    },
+    summary="Get movie details",
 )
 async def get_movie_detail(
     movie_uuid: UUID, db: AsyncSession = Depends(get_db)
@@ -313,7 +296,7 @@ async def get_movie_detail(
     "/{movie_uuid}/favorite/",
     status_code=status.HTTP_201_CREATED,
     response_model=MessageResponseSchema,
-    summary="Add Movie to Favorites",
+    summary="Add movie to favorites",
 )
 async def add_favorite(
     movie_uuid: UUID,
@@ -362,7 +345,7 @@ async def add_favorite(
     "/{movie_uuid}/favorite/",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
-    summary="Remove Movie from Favorites",
+    summary="Remove movie from favorites",
 )
 async def remove_favorite(
     movie_uuid: UUID,
@@ -419,7 +402,6 @@ async def remove_favorite(
     response_model=MessageResponseSchema,
     status_code=status.HTTP_200_OK,
     summary="Rate a movie",
-    description="Set or update a 10-point scale rating for a movie.",
 )
 async def rate_movie(
     movie_uuid: UUID,
@@ -483,13 +465,7 @@ async def rate_movie(
 @router.delete(
     "/{movie_uuid}/rating/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Remove Movie Rating",
-    description="Allows a user to remove their previously set rating for a movie.",
-    responses={
-        204: {"description": "Rating removed successfully."},
-        401: {"description": "Unauthorized."},
-        404: {"description": "Not Found - Movie or rating not found."},
-    },
+    summary="Remove movie rating",
 )
 async def remove_movie_rating(
     movie_uuid: UUID,
@@ -548,8 +524,7 @@ async def remove_movie_rating(
     "/{movie_uuid}/vote/",
     response_model=MessageResponseSchema,
     status_code=status.HTTP_200_OK,
-    summary="Like or Dislike a movie",
-    description="Submit a like (true) or dislike (false). Updates existing vote if found.",
+    summary="Like or dislike a movie",
 )
 async def vote_movie(
     movie_uuid: UUID,
@@ -613,7 +588,11 @@ async def vote_movie(
     return {"message": message}
 
 
-@router.post("/{movie_uuid}/comments/", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{movie_uuid}/comments/",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add comment to movie",
+)
 async def add_comment(
     movie_uuid: UUID,
     comment_data: CommentCreateSchema,
@@ -681,12 +660,7 @@ async def add_comment(
     "/comments/{comment_id}/",
     response_model=CommentReadSchema,
     status_code=status.HTTP_200_OK,
-    summary="Update Own Comment",
-    description="Allows a user to edit their own comment text.",
-    responses={
-        403: {"description": "Forbidden - Not your comment."},
-        404: {"description": "Not Found - Comment not found."},
-    },
+    summary="Update own comment",
 )
 async def update_my_comment(
     comment_id: int,
@@ -741,7 +715,11 @@ async def update_my_comment(
     return comment
 
 
-@router.get("/notifications/", response_model=List[NotificationReadSchema])
+@router.get(
+    "/notifications/",
+    response_model=List[NotificationReadSchema],
+    summary="Get notifications",
+)
 async def get_my_notifications(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -760,7 +738,10 @@ async def get_my_notifications(
     return result.scalars().all()
 
 
-@router.patch("/notifications/{notif_id}/read/")
+@router.patch(
+    "/notifications/{notif_id}/read/",
+    summary="Mark notification as read",
+)
 async def mark_as_read(
     notif_id: int,
     current_user: UserModel = Depends(get_current_user),
@@ -811,6 +792,7 @@ async def mark_as_read(
     "/{movie_uuid}/comments/",
     response_model=Page[CommentReadSchema],
     status_code=status.HTTP_200_OK,
+    summary="List movie comments (Paginated)",
 )
 async def list_movie_comments(
     movie_uuid: UUID,
@@ -864,7 +846,11 @@ async def list_movie_comments(
     )
 
 
-@router.post("/comments/{comment_id}/like/", response_model=MessageResponseSchema)
+@router.post(
+    "/comments/{comment_id}/like/",
+    response_model=MessageResponseSchema,
+    summary="Like or unlike a comment",
+)
 async def like_comment(
     comment_id: int,
     current_user: UserModel = Depends(get_current_user),
@@ -940,8 +926,7 @@ async def like_comment(
     "/genres/",
     response_model=GenreReadSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="Create Genre",
-    description="Add a new genre to the database. Restricted to staff.",
+    summary="[Moderator | Admin] create genre",
 )
 async def create_genre(
     genre_data: GenreCreateSchema,
@@ -989,7 +974,7 @@ async def create_genre(
     "/genres/{genre_id}/",
     response_model=GenreReadSchema,
     status_code=status.HTTP_200_OK,
-    summary="Update Genre",
+    summary="[Moderator | Admin] Update genre",
 )
 async def update_genre(
     genre_id: int,
@@ -1050,7 +1035,7 @@ async def update_genre(
 @router.delete(
     "/genres//{genre_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete Genre",
+    summary="[Moderator | Admin] Delete genre",
 )
 async def delete_genre(
     genre_id: int,
@@ -1095,8 +1080,7 @@ async def delete_genre(
     "/",
     response_model=MovieDetailResponseSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="Create New Movie",
-    description="Add a new movie to the catalog. Only Admins and Moderators can perform this action.",
+    summary="[Moderator | Admin] Create movie",
     responses={
         400: {
             "description": "Bad Request - Integrity constraint violation or missing relations."
@@ -1185,8 +1169,7 @@ async def create_movie(
     "/{movie_uuid}/",
     response_model=MovieDetailResponseSchema,
     status_code=status.HTTP_200_OK,
-    summary="Update Movie Details",
-    description="Partially update movie information, including relationships. Only staff can perform this.",
+    summary="[Moderator | Admin] Update movie details",
     responses={
         400: {"description": "Bad Request - Invalid data or constraint violation."},
         401: {"description": "Unauthorized."},
@@ -1305,8 +1288,7 @@ async def update_movie(
 @router.delete(
     "/{movie_uuid}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete Movie",
-    description="Permanently remove a movie and all its associated data (ratings, comments, etc.).",
+    summary="[Moderator | Admin] Delete movie",
     responses={
         204: {"description": "Movie deleted successfully."},
         401: {"description": "Unauthorized."},
@@ -1364,13 +1346,7 @@ async def delete_movie(
 @router.delete(
     "/comments/{comment_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete Comment",
-    description="Users can delete their own comments. Staff can delete any comment.",
-    responses={
-        204: {"description": "Deleted successfully."},
-        403: {"description": "Forbidden - Access denied."},
-        404: {"description": "Not Found."},
-    },
+    summary="[Moderator | Admin] Delete any comment",
 )
 async def delete_comment(
     comment_id: int,
@@ -1440,8 +1416,7 @@ async def delete_comment(
     "/stars/",
     response_model=Page[StarReadSchema],
     status_code=status.HTTP_200_OK,
-    summary="[Admin] Get All Stars",
-    description="Get a simple list of stars for management purposes.",
+    summary="[Moderator | Admin]  Get all actors (Paginated)",
 )
 async def get_stars(
     page: int = Query(1, ge=1, description="Current page number"),
@@ -1492,7 +1467,7 @@ async def get_stars(
     "/stars/",
     response_model=StarReadSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="[Admin] Create Star",
+    summary="[Moderator | Admin]  Create actor",
 )
 async def create_star(
     star_data: StarCreateSchema,
@@ -1522,7 +1497,7 @@ async def create_star(
     "/stars/{star_id}/",
     response_model=StarReadSchema,
     status_code=status.HTTP_200_OK,
-    summary="[Admin] Update Star",
+    summary="[Moderator | Admin] Update actor",
 )
 async def update_star(
     star_id: int,
@@ -1571,7 +1546,7 @@ async def update_star(
 @router.delete(
     "/stars/{star_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="[Admin] Delete Star",
+    summary="[Moderator | Admin] Delete actor",
 )
 async def delete_star(
     star_id: int,
@@ -1618,8 +1593,7 @@ async def delete_star(
     "/directors/",
     response_model=Page[DirectorReadSchema],
     status_code=status.HTTP_200_OK,
-    summary="[Admin] Get All Directors (Paginated)",
-    description="Get a list of all directors for database management.",
+    summary="[Moderator | Admin] Get all directors (Paginated)",
 )
 async def get_directors(
     page: int = Query(1, ge=1, description="Current page number"),
@@ -1667,7 +1641,7 @@ async def get_directors(
     "/directors/",
     response_model=DirectorReadSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="[Admin] Create Director",
+    summary="[Moderator | Admin] Create director",
 )
 async def create_director(
     director_data: DirectorCreateSchema,
@@ -1704,7 +1678,7 @@ async def create_director(
     "/directors/{director_id}/",
     response_model=DirectorReadSchema,
     status_code=status.HTTP_200_OK,
-    summary="[Admin] Update Director",
+    summary="[Moderator | Admin] Update director",
 )
 async def update_director(
     director_id: int,
@@ -1749,7 +1723,7 @@ async def update_director(
 @router.delete(
     "/directors/{director_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="[Admin] Delete Director",
+    summary="[Moderator | Admin] Delete director",
 )
 async def delete_director(
     director_id: int,
@@ -1797,7 +1771,7 @@ async def delete_director(
     "/certifications/",
     response_model=Page[CertificationReadSchema],
     status_code=status.HTTP_200_OK,
-    summary="[Admin] Get All Certifications (Paginated)",
+    summary="[Moderator | Admin] Get all certifications (Paginated)",
 )
 async def list_certifications(
     page: int = Query(1, ge=1, description="Current page number"),
@@ -1847,7 +1821,7 @@ async def list_certifications(
     "/certifications/",
     response_model=CertificationReadSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="[Admin] Create Certification",
+    summary="[Moderator | Admin] Create certification",
 )
 async def create_certification(
     cert_data: CertificationCreateSchema,
@@ -1892,7 +1866,7 @@ async def create_certification(
     "/certifications/{cert_id}/",
     response_model=CertificationReadSchema,
     status_code=status.HTTP_200_OK,
-    summary="[Admin] Update Certification",
+    summary="[Moderator | Admin] Update certification",
 )
 async def update_certification(
     cert_id: int,
@@ -1944,7 +1918,7 @@ async def update_certification(
 @router.delete(
     "/certifications/{cert_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="[Admin] Delete Certification",
+    summary="[Moderator | Admin] Delete certification",
 )
 async def delete_certification(
     cert_id: int,

@@ -335,9 +335,12 @@ async def change_password(
     - **Validation**: New password must be different and meet strength requirements.
     """
     logger.info(f"Password change initiated for user {current_user.id}")
+
+    current_user_id = current_user.id
+
     if not current_user.verify_password(data.old_password):
         logger.warning(
-            f"Failed password change for user {current_user.id}: invalid old password"
+            f"Failed password change for user {current_user_id}: invalid old password"
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -346,7 +349,7 @@ async def change_password(
 
     if data.old_password == data.new_password:
         logger.info(
-            f"Password change rejected for user {current_user.id}: new password matches old one"
+            f"Password change rejected for user {current_user_id}: new password matches old one"
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -359,7 +362,7 @@ async def change_password(
     except SQLAlchemyError as e:
         await db.rollback()
         logger.error(
-            f"DB error during password update for user {current_user.id}: {str(e)}",
+            f"DB error during password update for user {current_user_id}: {str(e)}",
             exc_info=True,
         )
         raise HTTPException(
@@ -367,7 +370,7 @@ async def change_password(
             detail="An error occurred while updating the password.",
         )
 
-    logger.info(f"Password successfully changed for user {current_user.id}")
+    logger.info(f"Password successfully changed for user {current_user_id}")
     return MessageResponseSchema(message="Password changed successfully.")
 
 
@@ -671,15 +674,18 @@ async def logout_user(
     - **Action**: Deletes the specific RefreshToken record from the database.
     """
     logger.info(f"Logout initiated for user {current_user.id}")
+
+    current_user_id = current_user.id
+
     stmt = select(RefreshTokenModel).filter_by(
-        token=token_data.refresh_token, user_id=current_user.id
+        token=token_data.refresh_token, user_id=current_user_id
     )
     result = await db.execute(stmt)
     refresh_token_record = result.scalars().first()
 
     if not refresh_token_record:
         logger.warning(
-            f"Logout failed: Refresh token not found or ownership mismatch for user {current_user.id}"
+            f"Logout failed: Refresh token not found or ownership mismatch for user {current_user_id}"
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -689,11 +695,11 @@ async def logout_user(
     try:
         await db.delete(refresh_token_record)
         await db.commit()
-        logger.info(f"User {current_user.id} logged out successfully. Session revoked.")
+        logger.info(f"User {current_user_id} logged out successfully. Session revoked.")
     except SQLAlchemyError:
         await db.rollback()
         logger.error(
-            f"DB error during logout for user {current_user.id}", exc_info=True
+            f"DB error during logout for user {current_user_id}", exc_info=True
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -833,25 +839,27 @@ async def update_profile(
     - **Storage**: Updates existing profile or creates a new one if missing.
     """
     logger.info(f"User {current_user.id} initiated profile update")
+
     await db.refresh(current_user, ["profile"])
     profile = current_user.profile
+    current_user_id = current_user.id
 
     if not profile:
-        logger.info(f"Creating missing profile record for user {current_user.id}")
-        profile = UserProfileModel(user_id=current_user.id)
+        logger.info(f"Creating missing profile record for user {current_user_id}")
+        profile = UserProfileModel(user_id=current_user_id)
         db.add(profile)
 
     if profile_data.avatar and profile_data.avatar.filename:
-        avatar_path = f"avatars/user_{current_user.id}/{profile_data.avatar.filename}"
+        avatar_path = f"avatars/user_{current_user_id}/{profile_data.avatar.filename}"
         try:
             content = await profile_data.avatar.read()
             logger.info(
-                f"User {current_user.id} uploading new avatar: {profile_data.avatar.filename}"
+                f"User {current_user_id} uploading new avatar: {profile_data.avatar.filename}"
             )
             await s3_client.upload_file(file_name=avatar_path, file_data=content)
             profile.avatar = avatar_path
         except Exception:
-            logger.error(f"S3 upload failed for user {current_user.id}", exc_info=True)
+            logger.error(f"S3 upload failed for user {current_user_id}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Failed to upload avatar.",
@@ -860,7 +868,7 @@ async def update_profile(
     data_to_update = profile_data.model_dump(exclude_unset=True, exclude={"avatar"})
 
     logger.debug(
-        f"Updating fields {list(data_to_update.keys())} for user {current_user.id}"
+        f"Updating fields {list(data_to_update.keys())} for user {current_user_id}"
     )
     for key, value in data_to_update.items():
         setattr(profile, key, value)
@@ -871,7 +879,7 @@ async def update_profile(
     except SQLAlchemyError:
         await db.rollback()
         logger.error(
-            f"Failed to save profile changes for user {current_user.id} in DB",
+            f"Failed to save profile changes for user {current_user_id} in DB",
             exc_info=True,
         )
         raise HTTPException(
@@ -884,7 +892,7 @@ async def update_profile(
 
     result = ProfileResponseSchema.model_validate(profile)
     result.avatar = avatar_url
-    logger.info(f"Profile updated successfully for user {current_user.id}")
+    logger.info(f"Profile updated successfully for user {current_user_id}")
     return result
 
 
@@ -1014,10 +1022,13 @@ async def admin_update_user(
     - **Fields**: Supports partial updates (patching) for 'is_active' and 'group_id'.
     """
     logger.info(f"Admin {current_user.id} is patching user {user_id}")
+
+    current_user_id = current_user.id
+
     user = await db.get(UserModel, user_id)
     if not user:
         logger.warning(
-            f"Admin {current_user.id} attempted to update non-existent user {user_id}"
+            f"Admin {current_user_id} attempted to update non-existent user {user_id}"
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -1025,7 +1036,7 @@ async def admin_update_user(
 
     update_data = data.model_dump(exclude_unset=True)
     logger.debug(
-        f"Admin {current_user.id} update payload for user {user_id}: {update_data}"
+        f"Admin {current_user_id} update payload for user {user_id}: {update_data}"
     )
     for key, value in update_data.items():
         setattr(user, key, value)
@@ -1042,7 +1053,7 @@ async def admin_update_user(
     except SQLAlchemyError:
         await db.rollback()
         logger.error(
-            f"Failed to update user {user_id} by admin {current_user.id} due to DB error",
+            f"Failed to update user {user_id} by admin {current_user_id} due to DB error",
             exc_info=True,
         )
         raise HTTPException(
@@ -1050,7 +1061,7 @@ async def admin_update_user(
         )
 
     logger.info(
-        f"Admin {current_user.id} successfully updated user {user_id}. Fields: {list(update_data.keys())}"
+        f"Admin {current_user_id} successfully updated user {user_id}. Fields: {list(update_data.keys())}"
     )
 
     return AdminUserUpdateResponseSchema.model_validate(user)

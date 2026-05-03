@@ -94,7 +94,10 @@ async def list_genres(
     page: int = Query(1, ge=1, description="Current page number"),
     size: int = Query(10, ge=1, le=100, description="Items per page"),
 ) -> Page[GenreWithCountSchema]:
-    """Retrieves all genres with the total count of movies associated with each."""
+    """Retrieves all genres with the total count of movies associated with each.
+
+    The list is sorted by the number of movies in descending order, showing the most popular genres first.
+    """
     logger.debug("Fetching all genres with movie counts")
 
     stmt = (
@@ -157,7 +160,21 @@ async def list_movies(
     current_user: Optional[UserModel] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Page[MovieShortResponseSchema]:
-    """Provides a paginated list of movies with multi-criteria filtering and full-text search."""
+    """
+    Provides a paginated list of movies with multi-criteria filtering and full-text search.
+
+    **Search & Filtering Logic:**
+    * **Full-text Search (`q`)**: Performs a case-insensitive search across movie titles, descriptions, and the names of actors (stars) and directors.
+    * **Favorites**: When `only_favorites` is true, returns only movies from the user's personal list. Requires an authorization token.
+    * **Categorization**: Filter by release year, genre, or set a minimum IMDb score threshold.
+
+    **Ordering:**
+    * Supports sorting by **year**, **price**, **imdb** rating, and **popularity** (based on total vote count).
+    * Results are returned in descending order by default.
+
+    **Note on Performance:**
+    Uses `selectinload` for genres to optimize database queries and avoid N+1 issues.
+    """
     logger.info(
         f"Movie list requested. Page: {page}, Size: {size}, Query: '{q}', Sort: {sort_by} {order}"
     )
@@ -252,6 +269,7 @@ async def get_movie_detail(
 ) -> MovieDetailResponseSchema:
     """
     Retrieves full information about a specific movie by its public UUID.
+    Includes expanded data for genres, cast (stars), directors, and age certification.
     """
     logger.info(f"Fetching movie details for UUID: {movie_uuid}")
 
@@ -303,7 +321,10 @@ async def add_favorite(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Adds a movie to the user's personal favorites list."""
+    """
+    Adds a movie to the user's personal favorites list.
+    If the movie is already in favorites, it returns a success message without creating a duplicate.
+    """
     logger.debug(
         f"User {current_user.id} attempting to add movie {movie_uuid} to favorites"
     )
@@ -409,7 +430,12 @@ async def rate_movie(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Sets or updates a numerical rating (1-10) for a movie and updates global stats."""
+    """
+    Sets or updates a numerical rating (1-10) for a movie.
+
+    **Side effects:** Automatically triggers a background recalculation of the movie's
+    global average rating and total review count.
+    """
     logger.debug(
         f"User {current_user.id} rating movie {movie_uuid} with score {rating_data.score}"
     )
@@ -532,7 +558,12 @@ async def vote_movie(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Casts or updates a binary vote (like/dislike) for a movie."""
+    """
+    Casts a binary vote (like/dislike) for a movie.
+
+    Updating a vote changes the type (like to dislike), while casting a new vote
+    increments the movie's global popularity counter.
+    """
     logger.debug(
         f"User {current_user.id} is voting for movie {movie_uuid} (is_like={vote_data.is_like})"
     )
@@ -599,7 +630,12 @@ async def add_comment(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Posts a new comment or a reply to an existing comment for a specific movie."""
+    """
+    Posts a new comment or a reply to an existing one.
+
+    If the comment is a reply, the author of the parent comment will receive
+    an automatic system notification.
+    """
     logger.info(f"User {current_user.id} is adding a comment to movie {movie_uuid}")
 
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
@@ -724,7 +760,10 @@ async def get_my_notifications(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Retrieves a list of all notifications for the authenticated user."""
+    """
+    Retrieves a list of all personal notifications (replies to comments, likes, etc.).
+    The list is sorted by date, with the most recent notifications first.
+    """
     logger.debug(f"User {current_user.id} requested notifications list")
 
     stmt = (
@@ -747,7 +786,10 @@ async def mark_as_read(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Marks a specific notification as read, validating ownership first."""
+    """
+    Marks a specific notification as read.
+    The user can only mark notifications that belong to their own account.
+    """
     logger.debug(f"User {current_user.id} marking notification {notif_id} as read")
 
     stmt = (
@@ -800,7 +842,10 @@ async def list_movie_comments(
     size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """Returns a paginated list of comments for a specific movie, including likes and user info."""
+    """
+    Returns a paginated list of comments for a specific movie.
+    Includes information about the authors and the list of users who liked each comment.
+    """
     logger.debug(f"Fetching comments for movie {movie_uuid} (page={page}, size={size})")
 
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
@@ -856,7 +901,12 @@ async def like_comment(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Toggles a like on a comment and notifies the author if it's a new like."""
+    """
+    Toggles a like on a comment.
+
+    If the user hasn't liked it yet, a like is added and the author receives a notification.
+    If a like already exists, it is removed.
+    """
     logger.debug(f"User {current_user.id} toggling like on comment {comment_id}")
 
     stmt = (
@@ -1095,7 +1145,14 @@ async def create_movie(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ) -> MovieModel:
-    """Creates a new movie record and validates all related entity IDs (genres, stars, etc.)."""
+    """
+    Creates a new movie record and validates all related entity IDs.
+
+    **Validation Logic:**
+    * **IDs Check**: Verifies that `certification_id`, `genre_ids`, `star_ids`, and `director_ids` exist in the database.
+    * **Unique Constraint**: Prevents creation of a movie with the same name, year, and duration.
+    * **Relationships**: Automatically links the movie to provided genres, actors, and directors.
+    """
     logger.info(f"Staff user {current_user.id} is creating movie: '{movie_data.name}'")
 
     cert = await db.get(CertificationModel, movie_data.certification_id)
@@ -1184,7 +1241,14 @@ async def update_movie(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ) -> MovieModel:
-    """Partially updates movie details and replaces specific relationships if IDs are provided."""
+    """
+    Partially updates movie details and manages relationships.
+
+    **Behavior for lists (genres, stars, directors):**
+    * If a list of IDs is provided, it **completely replaces** the existing associations.
+    * To clear a list, send an empty array `[]`.
+    * If the field is omitted, the current associations remain unchanged.
+    """
     logger.info(
         f"Staff user {current_user.id} initiated update for movie UUID: {movie_uuid}"
     )
@@ -1353,7 +1417,16 @@ async def delete_comment(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Deletes a comment. Owners can delete their own; staff can delete any and notify the user."""
+    """
+    Deletes a comment with permission checks.
+
+    **Access Levels:**
+    * **Owner**: Can delete their own comment at any time.
+    * **Staff (Admin/Moderator)**: Can delete any comment.
+
+    **Side Effects:**
+    If a staff member deletes a user's comment, the user will receive a **system notification** about the moderation action.
+    """
     logger.debug(f"User {current_user.id} initiated deletion of comment {comment_id}")
 
     stmt = select(MovieCommentModel).where(MovieCommentModel.id == comment_id)
@@ -1367,6 +1440,8 @@ async def delete_comment(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found."
         )
+
+    await db.refresh(current_user, ["group"])
 
     is_owner = comment.user_id == current_user.id
     is_staff = current_user.group.name in [UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR]
@@ -1925,7 +2000,13 @@ async def delete_certification(
     current_user: UserModel = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Deletes a certification, provided no movies are currently linked to it."""
+    """
+    Deletes a certification record.
+
+    **Restriction:**
+    * The deletion will fail with a **400 Bad Request** if any movies are currently assigned to this certification.
+    * You must reassign or delete the associated movies before removing the certification.
+    """
     logger.info(
         f"Staff user {current_user.id} is attempting to delete certification ID: {cert_id}"
     )

@@ -141,7 +141,7 @@ async def list_genres(
     "/",
     response_model=Page[MovieShortResponseSchema],
     status_code=status.HTTP_200_OK,
-    summary="Browse and filter movie catalog",
+    summary="Browse and filter movie catalog (Paginated)",
 )
 async def list_movies(
     page: int = Query(1, ge=1, description="Current page number"),

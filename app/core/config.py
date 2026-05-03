@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "movies_db")
     POSTGRES_DB_PORT: int = int(os.getenv("POSTGRES_DB_PORT", 5432))
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "admin")
-    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "some_password")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "super_cinema_pass_2026")
     POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "postgres_cinema")
 
     # JWT

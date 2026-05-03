@@ -22,7 +22,7 @@ app.include_router(
 @app.on_event("startup")
 async def startup_event():
     logger.info("Application is starting up...")
-    logger.info(f"Using storage endpoint: {settings.S3_ENDPOINT}")
+    logger.info(f"Using storage endpoint: {settings.S3_STORAGE_HOST}")
 
 
 @app.on_event("shutdown")

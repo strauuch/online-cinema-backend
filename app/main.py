@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 
 from core.config import settings
-from routes import accounts_router, movies_router
+from routes import accounts_router, movies_user_router, movies_admin_router
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,12 @@ app.include_router(
     accounts_router, prefix=f"{api_version_prefix}/accounts", tags=["accounts"]
 )
 app.include_router(
-    movies_router, prefix=f"{api_version_prefix}/movies", tags=["movies"]
+    movies_user_router, prefix=f"{api_version_prefix}/movies", tags=["movies_user"]
+)
+app.include_router(
+    movies_admin_router,
+    prefix=f"{api_version_prefix}/admin/movies",
+    tags=["movies_admin"],
 )
 
 

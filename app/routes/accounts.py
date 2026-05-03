@@ -904,7 +904,7 @@ async def update_profile(
 @router.get(
     "/admin/users/",
     response_model=list[AdminUserListResponseSchema],
-    summary="Admin: List all users",
+    summary="List all users [Admin]",
     description="Fetch a paginated list of all users with optional filtering by email, group, and status. Requires admin privileges.",
     responses={
         401: {"description": "Unauthorized."},
@@ -955,7 +955,7 @@ async def list_users(
 @router.get(
     "/admin/users/{user_id}/",
     response_model=AdminUserDetailResponseSchema,
-    summary="Admin: Update user status or group",
+    summary="Update user status or group [Admin]",
     description="Change a user's active status or reassign them to a different group (e.g., promote to Moderator).",
     responses={
         401: {"description": "Unauthorized."},
@@ -1004,7 +1004,7 @@ async def get_user(
 @router.patch(
     "/admin/users/{user_id}/",
     response_model=AdminUserUpdateResponseSchema,
-    summary="Admin: Get user details",
+    summary="Get user details  [Admin]",
     responses={
         401: {"description": "Unauthorized - Missing or invalid token."},
         403: {"description": "Forbidden - Admin access only."},

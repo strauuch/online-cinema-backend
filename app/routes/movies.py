@@ -991,7 +991,7 @@ async def like_comment(
     "/genres/",
     response_model=GenreReadSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="[Moderator | Admin] create genre",
+    summary="Create genre [Moderator | Admin]",
 )
 async def create_genre(
     genre_data: GenreCreateSchema,
@@ -1041,7 +1041,7 @@ async def create_genre(
     "/genres/{genre_id}/",
     response_model=GenreReadSchema,
     status_code=status.HTTP_200_OK,
-    summary="[Moderator | Admin] Update genre",
+    summary="Update genre [Moderator | Admin]",
 )
 async def update_genre(
     genre_id: int,
@@ -1104,7 +1104,7 @@ async def update_genre(
 @router.delete(
     "/genres//{genre_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="[Moderator | Admin] Delete genre",
+    summary="Delete genre [Moderator | Admin]",
 )
 async def delete_genre(
     genre_id: int,
@@ -1151,7 +1151,7 @@ async def delete_genre(
     "/",
     response_model=MovieDetailResponseSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="[Moderator | Admin] Create movie",
+    summary="Create movie [Moderator | Admin]",
     responses={
         400: {
             "description": "Bad Request - Integrity constraint violation or missing relations."
@@ -1249,7 +1249,7 @@ async def create_movie(
     "/{movie_uuid}/",
     response_model=MovieDetailResponseSchema,
     status_code=status.HTTP_200_OK,
-    summary="[Moderator | Admin] Update movie details",
+    summary="Update movie details [Moderator | Admin]",
     responses={
         400: {"description": "Bad Request - Invalid data or constraint violation."},
         401: {"description": "Unauthorized."},
@@ -1377,7 +1377,7 @@ async def update_movie(
 @router.delete(
     "/{movie_uuid}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="[Moderator | Admin] Delete movie",
+    summary="Delete movie [Moderator | Admin]",
     responses={
         204: {"description": "Movie deleted successfully."},
         401: {"description": "Unauthorized."},
@@ -1437,7 +1437,7 @@ async def delete_movie(
 @router.delete(
     "/comments/{comment_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="[Moderator | Admin] Delete any comment",
+    summary="Delete any comment [Moderator | Admin]",
 )
 async def delete_comment(
     comment_id: int,
@@ -1520,7 +1520,7 @@ async def delete_comment(
     "/stars/",
     response_model=Page[StarReadSchema],
     status_code=status.HTTP_200_OK,
-    summary="[Moderator | Admin]  Get all actors (Paginated)",
+    summary="Get all actors (Paginated) [Moderator | Admin]",
 )
 async def get_stars(
     page: int = Query(1, ge=1, description="Current page number"),
@@ -1571,7 +1571,7 @@ async def get_stars(
     "/stars/",
     response_model=StarReadSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="[Moderator | Admin]  Create actor",
+    summary="Create actor [Moderator | Admin]",
 )
 async def create_star(
     star_data: StarCreateSchema,
@@ -1603,7 +1603,7 @@ async def create_star(
     "/stars/{star_id}/",
     response_model=StarReadSchema,
     status_code=status.HTTP_200_OK,
-    summary="[Moderator | Admin] Update actor",
+    summary="Update actor [Moderator | Admin]",
 )
 async def update_star(
     star_id: int,
@@ -1654,7 +1654,7 @@ async def update_star(
 @router.delete(
     "/stars/{star_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="[Moderator | Admin] Delete actor",
+    summary="Delete actor [Moderator | Admin]",
 )
 async def delete_star(
     star_id: int,
@@ -1703,7 +1703,7 @@ async def delete_star(
     "/directors/",
     response_model=Page[DirectorReadSchema],
     status_code=status.HTTP_200_OK,
-    summary="[Moderator | Admin] Get all directors (Paginated)",
+    summary="Get all directors (Paginated) [Moderator | Admin]",
 )
 async def get_directors(
     page: int = Query(1, ge=1, description="Current page number"),
@@ -1751,7 +1751,7 @@ async def get_directors(
     "/directors/",
     response_model=DirectorReadSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="[Moderator | Admin] Create director",
+    summary="Create director [Moderator | Admin]",
 )
 async def create_director(
     director_data: DirectorCreateSchema,
@@ -1790,7 +1790,7 @@ async def create_director(
     "/directors/{director_id}/",
     response_model=DirectorReadSchema,
     status_code=status.HTTP_200_OK,
-    summary="[Moderator | Admin] Update director",
+    summary="Update director [Moderator | Admin]",
 )
 async def update_director(
     director_id: int,
@@ -1837,7 +1837,7 @@ async def update_director(
 @router.delete(
     "/directors/{director_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="[Moderator | Admin] Delete director",
+    summary="Delete director [Moderator | Admin]",
 )
 async def delete_director(
     director_id: int,
@@ -1887,7 +1887,7 @@ async def delete_director(
     "/certifications/",
     response_model=Page[CertificationReadSchema],
     status_code=status.HTTP_200_OK,
-    summary="[Moderator | Admin] Get all certifications (Paginated)",
+    summary="Get all certifications (Paginated) [Moderator | Admin]",
 )
 async def list_certifications(
     page: int = Query(1, ge=1, description="Current page number"),
@@ -1937,7 +1937,7 @@ async def list_certifications(
     "/certifications/",
     response_model=CertificationReadSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="[Moderator | Admin] Create certification",
+    summary="Create certification [Moderator | Admin]",
 )
 async def create_certification(
     cert_data: CertificationCreateSchema,
@@ -1984,7 +1984,7 @@ async def create_certification(
     "/certifications/{cert_id}/",
     response_model=CertificationReadSchema,
     status_code=status.HTTP_200_OK,
-    summary="[Moderator | Admin] Update certification",
+    summary="Update certification [Moderator | Admin]",
 )
 async def update_certification(
     cert_id: int,
@@ -2038,7 +2038,7 @@ async def update_certification(
 @router.delete(
     "/certifications/{cert_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="[Moderator | Admin] Delete certification",
+    summary="Delete certification [Moderator | Admin]",
 )
 async def delete_certification(
     cert_id: int,

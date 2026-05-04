@@ -946,29 +946,27 @@ async def list_users(
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_count = await db.scalar(count_stmt) or 0
 
-        stmt = (
-                stmt.order_by(UserModel.id)
-                .limit(size)
-                .offset((page - 1) * size)
-            )
+        stmt = stmt.order_by(UserModel.id).limit(size).offset((page - 1) * size)
 
         result = await db.execute(stmt)
 
         users = result.scalars().all()
-        logger.info(f"Admin {current_user.id} retrieved {len(users)} users (Total: {total_count})")
+        logger.info(
+            f"Admin {current_user.id} retrieved {len(users)} users (Total: {total_count})"
+        )
 
         return Page(
-                items=users,
-                total=total_count,
-                page=page,
-                size=size,
-                total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
-            )
+            items=users,
+            total=total_count,
+            page=page,
+            size=size,
+            total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
+        )
     except SQLAlchemyError as e:
         logger.error(f"Database error in admin list_users: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error occurred while fetching user list."
+            detail="Error occurred while fetching user list.",
         )
 
 

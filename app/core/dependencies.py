@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -16,7 +17,9 @@ from storages.s3 import S3StorageInterface, S3StorageClient
 from core.config import settings
 from database import get_db
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/accounts/login/")
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/accounts/login/", auto_error=False
+)
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +167,38 @@ async def get_current_staff_user(
             detail="Staff access required (Admin or Moderator).",
         )
     return current_user
+
+
+async def get_current_user_optional(
+    token: str = Depends(oauth2_scheme),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+    db: AsyncSession = Depends(get_db),
+) -> Optional[UserModel]:
+    """
+    Optional dependency: returns UserModel if the token is valid, otherwise returns None without raising an exception.
+    """
+    if not token:
+        return None
+
+    try:
+        payload = jwt_manager.decode_access_token(token)
+        user_id = payload.get("user_id")
+        if not user_id:
+            return None
+        stmt = (
+            select(UserModel)
+            .where(UserModel.id == user_id)
+            .options(joinedload(UserModel.group))
+        )
+        user = await db.scalar(stmt)
+
+        if user and user.is_active:
+            return user
+
+    except Exception:
+        return None
+
+    return None
 
 
 async def update_movie_rating_stats(movie_id: int, db: AsyncSession):

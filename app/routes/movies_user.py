@@ -11,6 +11,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from core.dependencies import (
     get_current_user,
     update_movie_rating_stats,
+    get_current_user_optional,
 )
 from database import get_db
 from database.models.accounts import UserModel
@@ -441,7 +442,7 @@ async def list_movies(
     sort_by: str = Query("year", pattern="^(year|price|imdb|popularity)$"),
     order: str = Query("desc", pattern="^(asc|desc)$"),
     only_favorites: bool = Query(False),
-    current_user: Optional[UserModel] = Depends(get_current_user),
+    current_user: Optional[UserModel] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> Page[MovieShortResponseSchema]:
     """

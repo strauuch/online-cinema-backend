@@ -3,9 +3,9 @@ import uuid
 
 from datetime import datetime, timezone
 from typing import cast
-from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks, Query
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -51,6 +51,7 @@ from schemas.accounts import (
     AdminUserDetailResponseSchema,
     UserActivationResendRequestSchema,
 )
+from schemas.pagination import Page
 from security.interfaces import JWTAuthManagerInterface
 from storages.interfaces import S3StorageInterface
 
@@ -916,8 +917,8 @@ async def update_profile(
 
 @router.get(
     "/admin/users/",
-    response_model=list[AdminUserListResponseSchema],
-    summary="List all users [Admin]",
+    response_model=Page[AdminUserListResponseSchema],
+    summary="List all users (Paginated) [Admin]",
     description="Fetch a paginated list of all users with optional filtering by email, group, and status. Requires admin privileges.",
     responses={
         401: {"description": "Unauthorized."},
@@ -925,8 +926,8 @@ async def update_profile(
     },
 )
 async def list_users(
-    limit: int = 10,
-    offset: int = 0,
+    page: int = Query(1, ge=1, description="Current page number"),
+    size: int = Query(10, ge=1, le=100, description="Items per page"),
     email_query: str | None = None,
     group_id: int | None = None,
     is_active: bool | None = None,
@@ -939,30 +940,51 @@ async def list_users(
     - **Access**: Strictly for users with Admin group.
     """
     logger.info(
-        f"Admin {current_user.id} requested user list (limit={limit}, offset={offset})"
+        f"Admin {current_user.id} requested user list (page={page}, size={size})"
     )
-    stmt = select(UserModel).options(joinedload(UserModel.group))
 
-    if email_query:
-        logger.debug(f"Applying email filter: {email_query}")
-        stmt = stmt.where(UserModel.email.ilike(f"%{email_query}%"))
+    try:
+        stmt = select(UserModel).options(joinedload(UserModel.group))
 
-    if group_id:
-        logger.debug(f"Filtering by group_id: {group_id}")
-        stmt = stmt.where(UserModel.group_id == group_id)
+        if email_query:
+            logger.debug(f"Applying email filter: {email_query}")
+            stmt = stmt.where(UserModel.email.ilike(f"%{email_query}%"))
 
-    if is_active is not None:
-        logger.debug(f"Filtering by is_active status: {is_active}")
-        stmt = stmt.where(UserModel.is_active == is_active)
+        if group_id:
+            logger.debug(f"Filtering by group_id: {group_id}")
+            stmt = stmt.where(UserModel.group_id == group_id)
 
-    stmt = stmt.limit(limit).offset(offset).order_by(UserModel.id)
+        if is_active is not None:
+            logger.debug(f"Filtering by is_active status: {is_active}")
+            stmt = stmt.where(UserModel.is_active == is_active)
 
-    result = await db.execute(stmt)
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_count = await db.scalar(count_stmt) or 0
 
-    users = result.scalars().all()
-    logger.info(f"Admin {current_user.id} retrieved {len(users)} users")
+        stmt = (
+                stmt.order_by(UserModel.id)
+                .limit(size)
+                .offset((page - 1) * size)
+            )
 
-    return users
+        result = await db.execute(stmt)
+
+        users = result.scalars().all()
+        logger.info(f"Admin {current_user.id} retrieved {len(users)} users (Total: {total_count})")
+
+        return Page(
+                items=users,
+                total=total_count,
+                page=page,
+                size=size,
+                total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
+            )
+    except SQLAlchemyError as e:
+        logger.error(f"Database error in admin list_users: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error occurred while fetching user list."
+        )
 
 
 @router.get(

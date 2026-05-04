@@ -1,4 +1,5 @@
 import logging
+import uuid
 
 from datetime import datetime, timezone
 from typing import cast
@@ -850,14 +851,25 @@ async def update_profile(
         db.add(profile)
 
     if profile_data.avatar and profile_data.avatar.filename:
-        avatar_path = f"avatars/user_{current_user_id}/{profile_data.avatar.filename}"
+        old_avatar_path = profile.avatar
+
+        file_ext = profile_data.avatar.filename.split(".")[-1]
+        unique_filename = f"{uuid.uuid4()}.{file_ext}"
+        new_avatar_path = f"avatars/user_{current_user_id}/{unique_filename}"
+
         try:
             content = await profile_data.avatar.read()
             logger.info(
                 f"User {current_user_id} uploading new avatar: {profile_data.avatar.filename}"
             )
-            await s3_client.upload_file(file_name=avatar_path, file_data=content)
-            profile.avatar = avatar_path
+            await s3_client.upload_file(file_name=new_avatar_path, file_data=content)
+            profile.avatar = new_avatar_path
+
+            if old_avatar_path:
+                try:
+                    await s3_client.delete_file(old_avatar_path)
+                except Exception as e:
+                    logger.error(f"Failed to delete old avatar {old_avatar_path}: {e}")
         except Exception:
             logger.error(f"S3 upload failed for user {current_user_id}", exc_info=True)
             raise HTTPException(
@@ -892,6 +904,7 @@ async def update_profile(
 
     result = ProfileResponseSchema.model_validate(profile)
     result.avatar = avatar_url
+
     logger.info(f"Profile updated successfully for user {current_user_id}")
     return result
 

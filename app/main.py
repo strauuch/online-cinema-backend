@@ -5,6 +5,12 @@ from fastapi import FastAPI
 from core.config import settings
 from routes import accounts_router, movies_user_router, movies_admin_router
 
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Online Cinema", description="Description of project")

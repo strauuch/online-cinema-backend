@@ -43,7 +43,6 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
-    # Явно вызываем скрипт по полному пути
     command: /bin/bash /app/commands/entrypoint.sh uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - theater_network

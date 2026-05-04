@@ -18,6 +18,15 @@ class S3StorageInterface(ABC):
         pass
 
     @abstractmethod
+    async def delete_file(self, file_name: str) -> None:
+        """
+        Deletes a file from the S3-compatible storage.
+
+        :param file_name: The name (Key) of the file to be deleted.
+        """
+        pass
+
+    @abstractmethod
     async def get_file_url(self, file_name: str) -> str:
         """
         Generate a public URL for a file stored in the S3-compatible storage.

@@ -40,3 +40,10 @@ class S3PermissionError(BaseS3Error):
 
     def __init__(self, message="Insufficient permissions to access S3 resource."):
         super().__init__(message)
+
+
+class S3DeleteError(BaseS3Error):
+    """Raised when an error occurs during file deletion."""
+
+    def __init__(self, message="Failed to delete file from S3."):
+        super().__init__(message)

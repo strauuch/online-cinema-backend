@@ -1,7 +1,17 @@
-from fastapi import FastAPI
-from core.config import settings
+import logging
 
-from routes import accounts_router
+from fastapi import FastAPI
+
+from core.config import settings
+from routes import accounts_router, movies_user_router, movies_admin_router
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Online Cinema", description="Description of project")
 
@@ -10,8 +20,22 @@ api_version_prefix = "/api/v1"
 app.include_router(
     accounts_router, prefix=f"{api_version_prefix}/accounts", tags=["accounts"]
 )
+app.include_router(
+    movies_user_router, prefix=f"{api_version_prefix}/movies", tags=["movies_user"]
+)
+app.include_router(
+    movies_admin_router,
+    prefix=f"{api_version_prefix}/admin/movies",
+    tags=["movies_admin"],
+)
 
 
-@app.get("/")
-def read_root():
-    return {"message": "Hello World", "db_url": settings.DATABASE_URL}
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Application is starting up...")
+    logger.info(f"Using storage endpoint: {settings.S3_STORAGE_HOST}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Application is shutting down...")

@@ -1,5 +1,6 @@
 from celery import Celery
 from celery.schedules import crontab
+
 from core.config import settings
 
 celery_app = Celery(
@@ -13,6 +14,7 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     imports=["app.worker.tasks"],
+    broker_connection_retry_on_startup=True,
 )
 
 celery_app.conf.beat_schedule = {

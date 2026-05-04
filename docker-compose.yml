@@ -29,6 +29,7 @@ services:
   app:
     build: .
     container_name: cinema_backend
+    entrypoint: ""
     depends_on:
       postgres_cinema:
         condition: service_healthy
@@ -42,18 +43,14 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-#    command: >
-#      sh -c "alembic upgrade head &&
-#             sleep 3 &&
-#             python app/manage.py seed_users &&
-#             python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    command: /bin/bash /app/commands/entrypoint.sh uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - theater_network
 
   celery_worker:
     build: .
     container_name: cinema_worker
+    entrypoint: ""
     depends_on:
       - redis
       - postgres_cinema
@@ -63,13 +60,14 @@ services:
       - PYTHONPATH=/app/app
     volumes:
       - .:/app
-    command: celery -A worker.celery_app worker --loglevel=info
+    command: /bin/bash /app/commands/entrypoint.sh celery -A app.worker.celery_app worker --loglevel=info
     networks:
       - theater_network
 
   celery_beat:
     build: .
     container_name: cinema_beat
+    entrypoint: ""
     depends_on:
       - redis
       - postgres_cinema
@@ -79,7 +77,7 @@ services:
       - PYTHONPATH=/app/app
     volumes:
       - .:/app
-    command: celery -A worker.celery_app beat --loglevel=info
+    command: /bin/bash /app/commands/entrypoint.sh celery -A app.worker.celery_app beat --loglevel=info
     networks:
       - theater_network
 
@@ -120,9 +118,9 @@ services:
     entrypoint: >
       /bin/sh -c "
       sleep 5;
-      mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
-      mc mb myminio/${MINIO_STORAGE} || true;
-      mc anonymous set download myminio/${MINIO_STORAGE};
+      mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb myminio/$${MINIO_STORAGE} || true;
+      mc anonymous set download myminio/$${MINIO_STORAGE};
       exit 0;
       "
     networks:

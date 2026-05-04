@@ -786,6 +786,7 @@ async def delete_certification(
         )
     return None
 
+
 @router.post(
     "/",
     response_model=MovieDetailResponseSchema,

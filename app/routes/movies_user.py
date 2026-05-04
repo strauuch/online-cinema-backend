@@ -61,6 +61,7 @@ async def get_movie_id_by_uuid(movie_uuid: UUID, db: AsyncSession) -> int:
 
     return movie_id
 
+
 @router.get(
     "/genres/",
     response_model=Page[GenreWithCountSchema],
@@ -215,7 +216,9 @@ async def update_my_comment(
 
     stmt = (
         select(MovieCommentModel)
-        .options(joinedload(MovieCommentModel.user))
+        .options(
+            joinedload(MovieCommentModel.user), selectinload(MovieCommentModel.likes)
+        )
         .where(MovieCommentModel.id == comment_id)
     )
     result = await db.execute(stmt)
@@ -334,6 +337,7 @@ async def like_comment(
         )
 
     return {"message": "Comment liked"}
+
 
 @router.delete(
     "/comments/{comment_id}/",
@@ -589,6 +593,7 @@ async def get_movie_detail(
 
     return movie
 
+
 @router.get(
     "/{movie_uuid}/comments/",
     response_model=Page[CommentReadSchema],
@@ -648,6 +653,7 @@ async def list_movie_comments(
         size=size,
         total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
     )
+
 
 @router.post(
     "/{movie_uuid}/comments/",
@@ -1037,7 +1043,3 @@ async def vote_movie(
         )
 
     return {"message": message}
-
-
-
-

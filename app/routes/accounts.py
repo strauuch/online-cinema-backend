@@ -68,7 +68,6 @@ logger = logging.getLogger(__name__)
     "/register/",
     response_model=UserRegistrationResponseSchema,
     summary="User Registration",
-    description="Register a new user with an email and password.",
     status_code=status.HTTP_201_CREATED,
     responses={
         409: {"description": "Conflict - User with this email already exists."},
@@ -156,7 +155,6 @@ async def register_user(
     "/activate/",
     response_model=MessageResponseSchema,
     summary="Activate User Account",
-    description="Activate a user's account using their email and activation token.",
     status_code=status.HTTP_200_OK,
     responses={
         400: {
@@ -243,7 +241,6 @@ async def activate_account(
     "/activate/resend/",
     response_model=MessageResponseSchema,
     summary="Resend Activation Token",
-    description="Deletes any existing activation token for the user and sends a new one.",
     status_code=status.HTTP_200_OK,
     responses={
         400: {
@@ -318,7 +315,6 @@ async def resend_activation_token(
     "/password-change/",
     response_model=MessageResponseSchema,
     summary="Change User Password",
-    description="Change the password for an authenticated user by verifying the old password.",
     status_code=status.HTTP_200_OK,
     responses={
         400: {
@@ -380,10 +376,6 @@ async def change_password(
     "/password-reset/request/",
     response_model=MessageResponseSchema,
     summary="Request Password Reset Token",
-    description=(
-        "Allows a user to request a password reset token. If the user exists and is active, "
-        "a new token will be generated and any existing tokens will be invalidated."
-    ),
     status_code=status.HTTP_200_OK,
 )
 async def request_password_reset_token(
@@ -394,7 +386,7 @@ async def request_password_reset_token(
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
-    Send a password reset link to the user's email.
+    Allows a user to request a password reset token. If the user exists and is active, a new token will be generated and any existing tokens will be invalidated..
     - **Privacy**: Returns a success message even if the user doesn't exist.
     - **Restriction**: Works only for active accounts.
     """
@@ -438,7 +430,6 @@ async def request_password_reset_token(
     "/reset-password/complete/",
     response_model=MessageResponseSchema,
     summary="Reset User Password",
-    description="Reset a user's password if a valid token is provided.",
     status_code=status.HTTP_200_OK,
     responses={
         400: {
@@ -529,7 +520,6 @@ async def reset_password(
     "/login/",
     response_model=UserLoginResponseSchema,
     summary="User Login",
-    description="Authenticate a user and return access and refresh tokens.",
     status_code=status.HTTP_201_CREATED,
     responses={
         401: {
@@ -655,7 +645,6 @@ async def login_user(
     "/logout/",
     response_model=MessageResponseSchema,
     summary="User Logout",
-    description="Revoke the user's refresh token, effectively logging them out.",
     status_code=status.HTTP_200_OK,
     responses={
         401: {
@@ -715,7 +704,6 @@ async def logout_user(
     "/refresh/",
     response_model=TokenRefreshResponseSchema,
     summary="Refresh Access Token",
-    description="Refresh the access token using a valid refresh token.",
     status_code=status.HTTP_200_OK,
     responses={
         400: {
@@ -783,7 +771,6 @@ async def refresh_access_token(
     "/me/",
     response_model=UserMeResponseSchema,
     summary="Get current user info",
-    description="Retrieve detailed information about the currently authenticated user, including profile details and avatar URL.",
     responses={
         401: {"description": "Unauthorized - Invalid or missing access token."},
     },
@@ -820,7 +807,6 @@ async def get_me(
     response_model=ProfileResponseSchema,
     status_code=status.HTTP_200_OK,
     summary="Update User Profile",
-    description="Update personal profile information and upload an avatar to S3 storage.",
     responses={
         401: {"description": "Unauthorized."},
         502: {"description": "Bad Gateway - Failed to upload avatar to storage."},
@@ -919,7 +905,6 @@ async def update_profile(
     "/admin/users/",
     response_model=Page[AdminUserListResponseSchema],
     summary="List all users (Paginated) [Admin]",
-    description="Fetch a paginated list of all users with optional filtering by email, group, and status. Requires admin privileges.",
     responses={
         401: {"description": "Unauthorized."},
         403: {"description": "Forbidden - Admin privileges required."},
@@ -991,7 +976,6 @@ async def list_users(
     "/admin/users/{user_id}/",
     response_model=AdminUserDetailResponseSchema,
     summary="Update user status or group [Admin]",
-    description="Change a user's active status or reassign them to a different group (e.g., promote to Moderator).",
     responses={
         401: {"description": "Unauthorized."},
         403: {"description": "Forbidden."},

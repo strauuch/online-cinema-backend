@@ -2,7 +2,7 @@ import decimal
 
 import uuid as python_uuid
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     String,
@@ -22,8 +22,10 @@ from sqlalchemy.orm import mapped_column, Mapped, relationship
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from database import Base
-from database.models.accounts import UserModel
 from database.models.enums import NotificationType
+
+if TYPE_CHECKING:
+    from database.models.accounts import UserModel
 
 movie_genres = Table(
     "movies_genres",

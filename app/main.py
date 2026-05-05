@@ -3,7 +3,12 @@ import logging
 from fastapi import FastAPI
 
 from core.config import settings
-from routes import accounts_router, movies_user_router, movies_admin_router
+from routes import (
+    accounts_router,
+    movies_user_router,
+    movies_admin_router,
+    carts_router,
+)
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -27,6 +32,11 @@ app.include_router(
     movies_admin_router,
     prefix=f"{api_version_prefix}/admin/movies",
     tags=["movies_admin"],
+)
+app.include_router(
+    carts_router,
+    prefix=f"{api_version_prefix}/cart",
+    tags=["carts"],
 )
 
 

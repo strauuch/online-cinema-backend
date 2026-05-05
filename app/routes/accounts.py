@@ -29,6 +29,7 @@ from database.models.accounts import (
     RefreshTokenModel,
     UserProfileModel,
 )
+from database.models.carts import CartModel
 from exceptions.security import BaseSecurityError
 from notifications import EmailSenderInterface
 from schemas.accounts import (
@@ -124,11 +125,20 @@ async def register_user(
         activation_token = ActivationTokenModel(user_id=new_user.id)
         db.add(activation_token)
 
-        await db.commit()
+        await db.flush()
         await db.refresh(new_user)
         logger.info(
             f"User created successfully: ID {new_user.id}, Email {new_user.email}"
         )
+
+        new_profile = UserProfileModel(user_id=new_user.id)
+        db.add(new_profile)
+
+        new_cart = CartModel(user_id=new_user.id)
+        db.add(new_cart)
+
+        await db.commit()
+        logger.info(f"Profile and cart created successfully for user {new_user.id}")
 
     except SQLAlchemyError as e:
         await db.rollback()
@@ -218,11 +228,6 @@ async def activate_account(
     user.is_active = True
     await db.delete(token_record)
     await db.flush()
-
-    new_profile = UserProfileModel(user_id=user.id)
-    db.add(new_profile)
-
-    await db.commit()
 
     logger.info(
         f"User {user.id} successfully activated their account and profile created. Enqueued welcome email for {activation_data.email}"

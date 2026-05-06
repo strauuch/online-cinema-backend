@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from database.models.carts import CartModel
+    from database.models.orders import OrderModel
 
 
 class UserGroupModel(Base):
@@ -83,6 +84,7 @@ class UserModel(Base):
     cart: Mapped[Optional["CartModel"]] = relationship(
         "CartModel", back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
+    orders: Mapped[List["OrderModel"]] = relationship("OrderModel", back_populates="user")
 
     def __repr__(self):
         return (

@@ -23,6 +23,7 @@ class OrderStatusEnum(str, enum.Enum):
     PAID = "paid"
     CANCELED = "canceled"
 
+
 class PaymentStatusEnum(str, enum.Enum):
     SUCCESSFUL = "successful"
     CANCELED = "canceled"

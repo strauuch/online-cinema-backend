@@ -84,7 +84,9 @@ class UserModel(Base):
     cart: Mapped[Optional["CartModel"]] = relationship(
         "CartModel", back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
-    orders: Mapped[List["OrderModel"]] = relationship("OrderModel", back_populates="user")
+    orders: Mapped[List["OrderModel"]] = relationship(
+        "OrderModel", back_populates="user"
+    )
 
     def __repr__(self):
         return (

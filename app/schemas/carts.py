@@ -28,7 +28,9 @@ class CartResponseSchema(BaseModel):
     user_id: int
     items: List[CartItemResponseSchema]
     total_price: Decimal = Field(
-        default=Decimal("0.00",),
+        default=Decimal(
+            "0.00",
+        ),
         description="The sum of prices of all movies currently in the cart",
         examples=["499.00"],
     )
@@ -50,19 +52,8 @@ class CartItemRemovedSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class CartClearSchema(BaseModel):
     message: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-class CartResponse(BaseModel):
-    id: int
-    user_id: int
-    items: List[CartItemResponseSchema]
-    total_price: Decimal = Field(
-        default=Decimal("0.00"),
-        description="The sum of prices of all movies currently in the cart",
-        examples=["499.00"],
-        )
 
     model_config = ConfigDict(from_attributes=True)

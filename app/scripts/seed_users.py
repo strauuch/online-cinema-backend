@@ -2,6 +2,7 @@ import logging
 
 from sqlalchemy import select
 
+from database.models import accounts, carts, movies
 from database.models.accounts import UserModel, UserGroupModel
 from database.models.enums import UserGroupEnum
 from scripts.base import BaseCommand

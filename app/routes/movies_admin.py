@@ -55,11 +55,10 @@ async def create_genre(
     db: AsyncSession = Depends(get_db),
 ):
     """Creates a new unique genre in the database. Restricted to staff users."""
-    logger.info(
-        f"Staff user {current_user.id} is creating a new genre: '{genre_data.name}'"
-    )
-
     current_user_id = current_user.id
+    logger.info(
+        f"Staff user {current_user_id} is creating a new genre: '{genre_data.name}'"
+    )
 
     new_genre = GenreModel(name=genre_data.name)
     db.add(new_genre)
@@ -106,11 +105,10 @@ async def update_genre(
     db: AsyncSession = Depends(get_db),
 ):
     """Updates the name of an existing genre, ensuring the new name remains unique."""
-    logger.debug(
-        f"Staff user {current_user.id} initiated update for genre_id: {genre_id}"
-    )
-
     current_user_id = current_user.id
+    logger.debug(
+        f"Staff user {current_user_id} initiated update for genre_id: {genre_id}"
+    )
 
     genre = await db.get(GenreModel, genre_id)
     if not genre:
@@ -168,11 +166,10 @@ async def delete_genre(
     db: AsyncSession = Depends(get_db),
 ):
     """Permanently deletes a genre by ID. Movie-genre associations are cleaned via cascade."""
-    logger.info(
-        f"Staff user {current_user.id} is attempting to delete genre ID: {genre_id}"
-    )
-
     current_user_id = current_user.id
+    logger.info(
+        f"Staff user {current_user_id} is attempting to delete genre ID: {genre_id}"
+    )
 
     genre = await db.get(GenreModel, genre_id)
     if not genre:
@@ -266,9 +263,8 @@ async def create_star(
     db: AsyncSession = Depends(get_db),
 ):
     """Adds a new actor to the database. Ensures the name is unique."""
-    logger.info(f"Staff user {current_user.id} creating star: '{star_data.name}'")
-
     current_user_id = current_user.id
+    logger.info(f"Staff user {current_user_id} creating star: '{star_data.name}'")
 
     new_star = StarModel(name=star_data.name)
     db.add(new_star)
@@ -301,9 +297,8 @@ async def update_star(
     db: AsyncSession = Depends(get_db),
 ):
     """Updates an actor's name after validating it doesn't conflict with existing records."""
-    logger.debug(f"User {current_user.id} updating star {star_id}")
-
     current_user_id = current_user.id
+    logger.debug(f"User {current_user_id} updating star {star_id}")
 
     star = await db.get(StarModel, star_id)
     if not star:
@@ -351,11 +346,10 @@ async def delete_star(
     db: AsyncSession = Depends(get_db),
 ):
     """Permanently deletes an actor record and severs all movie associations."""
-    logger.info(
-        f"Staff user {current_user.id} initiated deletion for star ID: {star_id}"
-    )
-
     current_user_id = current_user.id
+    logger.info(
+        f"Staff user {current_user_id} initiated deletion for star ID: {star_id}"
+    )
 
     star = await db.get(StarModel, star_id)
     if not star:
@@ -448,11 +442,10 @@ async def create_director(
     db: AsyncSession = Depends(get_db),
 ):
     """Creates a new director record. Raises a conflict error if the name already exists."""
-    logger.info(
-        f"Staff user {current_user.id} initiated director creation: '{director_data.name}'"
-    )
-
     current_user_id = current_user.id
+    logger.info(
+        f"Staff user {current_user_id} initiated director creation: '{director_data.name}'"
+    )
 
     new_director = DirectorModel(name=director_data.name)
     db.add(new_director)
@@ -488,9 +481,8 @@ async def update_director(
     db: AsyncSession = Depends(get_db),
 ):
     """Renames an existing director and performs a uniqueness check on the new name."""
-    logger.debug(f"User {current_user.id} requested update for director {director_id}")
-
     current_user_id = current_user.id
+    logger.debug(f"User {current_user_id} requested update for director {director_id}")
 
     director = await db.get(DirectorModel, director_id)
     if not director:
@@ -534,11 +526,10 @@ async def delete_director(
     db: AsyncSession = Depends(get_db),
 ):
     """Removes a director from the catalog by their internal ID."""
-    logger.info(
-        f"Staff user {current_user.id} initiated deletion for director ID: {director_id}"
-    )
-
     current_user_id = current_user.id
+    logger.info(
+        f"Staff user {current_user_id} initiated deletion for director ID: {director_id}"
+    )
 
     director = await db.get(DirectorModel, director_id)
     if not director:
@@ -634,11 +625,10 @@ async def create_certification(
     db: AsyncSession = Depends(get_db),
 ):
     """Registers a new age certification (e.g., 'PG-13', '18+') in the system."""
-    logger.info(
-        f"Staff user {current_user.id} is creating a new certification: '{cert_data.name}'"
-    )
-
     current_user_id = current_user.id
+    logger.info(
+        f"Staff user {current_user_id =} is creating a new certification: '{cert_data.name}'"
+    )
 
     new_cert = CertificationModel(name=cert_data.name)
     db.add(new_cert)
@@ -682,9 +672,8 @@ async def update_certification(
     db: AsyncSession = Depends(get_db),
 ):
     """Modifies the name of an existing age rating certification."""
-    logger.debug(f"User {current_user.id} requested update for certification {cert_id}")
-
     current_user_id = current_user.id
+    logger.debug(f"User {current_user_id} requested update for certification {cert_id}")
 
     cert = await db.get(CertificationModel, cert_id)
     if not cert:
@@ -741,11 +730,10 @@ async def delete_certification(
     * The deletion will fail with a **400 Bad Request** if any movies are currently assigned to this certification.
     * You must reassign or delete the associated movies before removing the certification.
     """
-    logger.info(
-        f"Staff user {current_user.id} is attempting to delete certification ID: {cert_id}"
-    )
-
     current_user_id = current_user.id
+    logger.info(
+        f"Staff user {current_user_id} is attempting to delete certification ID: {cert_id}"
+    )
 
     cert = await db.get(CertificationModel, cert_id)
     if not cert:
@@ -814,9 +802,8 @@ async def create_movie(
     * **Unique Constraint**: Prevents creation of a movie with the same name, year, and duration.
     * **Relationships**: Automatically links the movie to provided genres, actors, and directors.
     """
-    logger.info(f"Staff user {current_user.id} is creating movie: '{movie_data.name}'")
-
     current_user_id = current_user.id
+    logger.info(f"Staff user {current_user_id} is creating movie: '{movie_data.name}'")
 
     cert = await db.get(CertificationModel, movie_data.certification_id)
     if not cert:
@@ -912,11 +899,10 @@ async def update_movie(
     * To clear a list, send an empty array `[]`.
     * If the field is omitted, the current associations remain unchanged.
     """
-    logger.info(
-        f"Staff user {current_user.id} initiated update for movie UUID: {movie_uuid}"
-    )
-
     current_user_id = current_user.id
+    logger.info(
+        f"Staff user {current_user_id} initiated update for movie UUID: {movie_uuid}"
+    )
 
     stmt = (
         select(MovieModel)
@@ -1032,11 +1018,10 @@ async def delete_movie(
     db: AsyncSession = Depends(get_db),
 ):
     """Removes a movie by UUID, automatically clearing related ratings, comments, and favorites."""
-    logger.info(
-        f"Staff user {current_user.id} is attempting to delete movie UUID: {movie_uuid}"
-    )
-
     current_user_id = current_user.id
+    logger.info(
+        f"Staff user {current_user_id} is attempting to delete movie UUID: {movie_uuid}"
+    )
 
     stmt = select(MovieModel).where(MovieModel.uuid == movie_uuid)
     result = await db.execute(stmt)

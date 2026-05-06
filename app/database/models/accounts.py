@@ -1,7 +1,7 @@
 import logging
 
 from datetime import datetime, date, timedelta, timezone
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import (
     ForeignKey,
     String,
@@ -23,6 +23,9 @@ from security.passwords import hash_password, verify_password
 from security.utils import generate_secure_token
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from database.models.carts import CartModel
 
 
 class UserGroupModel(Base):
@@ -59,28 +62,26 @@ class UserModel(Base):
         onupdate=func.now(),
         nullable=False,
     )
-
     group_id: Mapped[int] = mapped_column(
         ForeignKey("user_groups.id", ondelete="CASCADE"), nullable=False
     )
     group: Mapped["UserGroupModel"] = relationship(
         "UserGroupModel", back_populates="users"
     )
-
     activation_token: Mapped[Optional["ActivationTokenModel"]] = relationship(
         "ActivationTokenModel", back_populates="user", cascade="all, delete-orphan"
     )
-
     password_reset_token: Mapped[Optional["PasswordResetTokenModel"]] = relationship(
         "PasswordResetTokenModel", back_populates="user", cascade="all, delete-orphan"
     )
-
     refresh_tokens: Mapped[List["RefreshTokenModel"]] = relationship(
         "RefreshTokenModel", back_populates="user", cascade="all, delete-orphan"
     )
-
     profile: Mapped[Optional["UserProfileModel"]] = relationship(
         "UserProfileModel", back_populates="user", cascade="all, delete-orphan"
+    )
+    cart: Mapped[Optional["CartModel"]] = relationship(
+        "CartModel", back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
 
     def __repr__(self):

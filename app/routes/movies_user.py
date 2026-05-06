@@ -156,9 +156,8 @@ async def mark_as_read(
     Marks a specific notification as read.
     The user can only mark notifications that belong to their own account.
     """
-    logger.debug(f"User {current_user.id} marking notification {notif_id} as read")
-
     current_user_id = current_user.id
+    logger.debug(f"User {current_user_id} marking notification {notif_id} as read")
 
     stmt = (
         update(NotificationModel)
@@ -211,9 +210,8 @@ async def update_my_comment(
     db: AsyncSession = Depends(get_db),
 ):
     """Edits the text content of a comment owned by the current user."""
-    logger.debug(f"User {current_user.id} is attempting to update comment {comment_id}")
-
     current_user_id = current_user.id
+    logger.debug(f"User {current_user_id} is attempting to update comment {comment_id}")
 
     stmt = (
         select(MovieCommentModel)
@@ -277,10 +275,9 @@ async def like_comment(
     If the user hasn't liked it yet, a like is added and the author receives a notification.
     If a like already exists, it is removed.
     """
-    logger.debug(f"User {current_user.id} toggling like on comment {comment_id}")
-
     current_user_id = current_user.id
     current_user_email = current_user.email
+    logger.debug(f"User {current_user_id} toggling like on comment {comment_id}")
 
     stmt = (
         select(MovieCommentModel)
@@ -360,9 +357,8 @@ async def delete_comment(
     **Side Effects:**
     If a staff member deletes a user's comment, the user will receive a **system notification** about the moderation action.
     """
-    logger.debug(f"User {current_user.id} initiated deletion of comment {comment_id}")
-
     current_user_id = current_user.id
+    logger.debug(f"User {current_user_id} initiated deletion of comment {comment_id}")
 
     stmt = select(MovieCommentModel).where(MovieCommentModel.id == comment_id)
     result = await db.execute(stmt)
@@ -673,10 +669,10 @@ async def add_comment(
     If the comment is a reply, the author of the parent comment will receive
     an automatic system notification.
     """
-    logger.info(f"User {current_user.id} is adding a comment to movie {movie_uuid}")
-
     current_user_id = current_user.id
     current_user_email = current_user.email
+    logger.info(f"User {current_user_id} is adding a comment to movie {movie_uuid}")
+
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     parent_comment = None
@@ -746,11 +742,11 @@ async def add_favorite(
     Adds a movie to the user's personal favorites list.
     If the movie is already in favorites, it returns a success message without creating a duplicate.
     """
+    current_user_id = current_user.id
     logger.debug(
-        f"User {current_user.id} attempting to add movie {movie_uuid} to favorites"
+        f"User {current_user_id} attempting to add movie {movie_uuid} to favorites"
     )
 
-    current_user_id = current_user.id
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = select(MovieFavoriteModel).where(
@@ -796,11 +792,10 @@ async def remove_favorite(
     db: AsyncSession = Depends(get_db),
 ):
     """Removes a movie from the user's personal favorites list."""
-    logger.debug(
-        f"Process 'remove_favorite' started for user {current_user.id}, movie {movie_uuid}"
-    )
-
     current_user_id = current_user.id
+    logger.debug(
+        f"Process 'remove_favorite' started for user {current_user_id}, movie {movie_uuid}"
+    )
 
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
@@ -860,11 +855,11 @@ async def rate_movie(
     **Side effects:** Automatically triggers a background recalculation of the movie's
     global average rating and total review count.
     """
+    current_user_id = current_user.id
     logger.debug(
-        f"User {current_user.id} rating movie {movie_uuid} with score {rating_data.score}"
+        f"User {current_user_id} rating movie {movie_uuid} with score {rating_data.score}"
     )
 
-    current_user_id = current_user.id
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = select(MovieRatingModel).where(
@@ -924,11 +919,11 @@ async def remove_movie_rating(
     db: AsyncSession = Depends(get_db),
 ):
     """Deletes the user's rating for a movie and triggers a global stats recalculation."""
+    current_user_id = current_user.id
     logger.debug(
-        f"Initiating rating removal for user {current_user.id} on movie {movie_uuid}"
+        f"Initiating rating removal for user {current_user_id} on movie {movie_uuid}"
     )
 
-    current_user_id = current_user.id
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = (
@@ -990,11 +985,11 @@ async def vote_movie(
     Updating a vote changes the type (like to dislike), while casting a new vote
     increments the movie's global popularity counter.
     """
+    current_user_id = current_user.id
     logger.debug(
-        f"User {current_user.id} is voting for movie {movie_uuid} (is_like={vote_data.is_like})"
+        f"User {current_user_id} is voting for movie {movie_uuid} (is_like={vote_data.is_like})"
     )
 
-    current_user_id = current_user.id
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)
 
     stmt = select(MovieVoteModel).where(

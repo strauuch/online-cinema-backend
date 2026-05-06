@@ -1,6 +1,7 @@
 import logging
 from decimal import Decimal
 from fastapi import APIRouter, Depends, status, HTTPException
+from sqlalchemy import delete
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -10,7 +11,7 @@ from database import get_db
 from database.models.accounts import UserModel
 from database.models.carts import CartModel, CartItemModel
 from database.models.movies import MovieModel
-from schemas.carts import CartResponseSchema, CartItemAddedSchema, CartItemRemovedSchema
+from schemas.carts import CartResponseSchema, CartItemAddedSchema, CartItemRemovedSchema, CartClearSchema
 from core.dependencies import get_current_user
 
 router = APIRouter(prefix="/cart", tags=["Shopping Cart"])
@@ -224,4 +225,52 @@ async def remove_from_cart(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while removing the item from the cart.",
+        )
+
+@router.delete(
+    "/clear",
+    response_model=CartClearSchema,
+    summary="Clear Entire Cart",
+    status_code=status.HTTP_200_OK,
+    responses={
+        401: {"description": "Unauthorized - User not logged in."},
+        500: {"description": "Internal Server Error - Database issues."},
+    },
+)
+async def clear_cart(
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> CartClearSchema:
+    """
+    Remove all items from the current user's shopping cart.
+    - **Logic**: Finds the user's cart and deletes all associated CartItem records.
+    """
+    current_user_id = current_user.id
+    logger.info(f"User {current_user_id} is clearing their shopping cart.")
+
+    try:
+        cart_stmt = select(CartModel.id).where(CartModel.user_id == current_user_id)
+        cart_id = await db.scalar(cart_stmt)
+
+        if not cart_id:
+            logger.error(f"Cart missing for user {current_user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User cart not found."
+            )
+
+        delete_stmt = delete(CartItemModel).where(CartItemModel.cart_id == cart_id)
+        await db.execute(delete_stmt)
+
+        await db.commit()
+
+        logger.info(f"Cart {cart_id} for user {current_user_id} has been cleared.")
+        return CartClearSchema(message="All items have been removed from your cart.")
+
+    except SQLAlchemyError as e:
+        await db.rollback()
+        logger.error(f"DB error while clearing cart for user {current_user_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while clearing the cart."
         )

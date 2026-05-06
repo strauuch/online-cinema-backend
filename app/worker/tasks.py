@@ -6,6 +6,7 @@ from sqlalchemy import delete
 
 from worker.celery_app import celery_app
 from database.engine import sync_postgresql_engine
+from database.models import accounts, movies, carts, orders, payments
 from database.models.accounts import (
     ActivationTokenModel,
     PasswordResetTokenModel,

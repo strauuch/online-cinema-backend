@@ -337,9 +337,8 @@ async def change_password(
     - **Security**: Verifies old password.
     - **Validation**: New password must be different and meet strength requirements.
     """
-    logger.info(f"Password change initiated for user {current_user.id}")
-
     current_user_id = current_user.id
+    logger.info(f"Password change initiated for user {current_user_id}")
 
     if not current_user.verify_password(data.old_password):
         logger.warning(
@@ -669,9 +668,8 @@ async def logout_user(
     Log out the user by revoking their refresh token.
     - **Action**: Deletes the specific RefreshToken record from the database.
     """
-    logger.info(f"Logout initiated for user {current_user.id}")
-
     current_user_id = current_user.id
+    logger.info(f"Logout initiated for user {current_user_id}")
 
     stmt = select(RefreshTokenModel).filter_by(
         token=token_data.refresh_token, user_id=current_user_id
@@ -831,11 +829,11 @@ async def update_profile(
     - **Avatar**: Handles file upload to S3 storage.
     - **Storage**: Updates existing profile or creates a new one if missing.
     """
-    logger.info(f"User {current_user.id} initiated profile update")
-
-    await db.refresh(current_user, ["profile"])
     profile = current_user.profile
     current_user_id = current_user.id
+    logger.info(f"User {current_user_id} initiated profile update")
+
+    await db.refresh(current_user, ["profile"])
 
     if not profile:
         logger.info(f"Creating missing profile record for user {current_user_id}")
@@ -1043,9 +1041,8 @@ async def admin_update_user(
     [Admin] Update user account status or group.
     - **Fields**: Supports partial updates (patching) for 'is_active' and 'group_id'.
     """
-    logger.info(f"Admin {current_user.id} is patching user {user_id}")
-
     current_user_id = current_user.id
+    logger.info(f"Admin {current_user_id} is patching user {user_id}")
 
     user = await db.get(UserModel, user_id)
     if not user:

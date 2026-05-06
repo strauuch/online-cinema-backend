@@ -11,8 +11,8 @@ from database import get_db
 from database.models.accounts import UserModel
 from database.models.carts import CartModel, CartItemModel
 from database.models.movies import MovieModel
-from schemas.carts import CartResponseSchema, CartItemAddedSchema, CartItemRemovedSchema, CartClearSchema
-from core.dependencies import get_current_user
+from schemas.carts import CartResponseSchema, CartItemAddedSchema, CartItemRemovedSchema, CartClearSchema, CartResponse
+from core.dependencies import get_current_user, get_current_admin_user
 
 router = APIRouter(prefix="/cart", tags=["Shopping Cart"])
 logger = logging.getLogger(__name__)
@@ -273,4 +273,60 @@ async def clear_cart(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while clearing the cart."
+        )
+
+
+@router.get(
+    "/admin/carts/{user_id}",
+    response_model=CartResponse,
+    summary="Get Specific User's Cart [Admin]",
+    responses={
+        403: {"description": "Forbidden - Admin access required."},
+        404: {"description": "Not Found - User or cart does not exist."},
+    },
+)
+async def get_user_cart_admin(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin_user: UserModel = Depends(get_current_admin_user),
+) -> CartResponse:
+    """
+    Allows an administrator to view the contents of any user's cart.
+    """
+    logger.info(f"Admin {admin_user.id} is viewing cart for user {user_id}")
+
+    try:
+        stmt = (
+            select(CartModel)
+            .where(CartModel.user_id == user_id)
+            .options(
+                selectinload(CartModel.items)
+                .selectinload(CartItemModel.movie)
+            )
+        )
+
+        result = await db.execute(stmt)
+        cart = result.scalar_one_or_none()
+
+        if not cart:
+            logger.warning(f"Admin tried to access non-existent cart for user {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Cart for user {user_id} not found."
+            )
+
+        calculated_total = Decimal(str(sum(item.movie.price for item in cart.items)))
+
+        return CartResponse(
+            id=cart.id,
+            user_id=cart.user_id,
+            items=cart.items,
+            total_price=calculated_total
+        )
+
+    except SQLAlchemyError as e:
+        logger.error(f"DB error in admin cart access: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching the user's cart."
         )

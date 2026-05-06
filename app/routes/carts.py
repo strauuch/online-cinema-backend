@@ -19,7 +19,7 @@ from schemas.carts import (
 )
 from core.dependencies import get_current_user, get_current_admin_user
 
-router = APIRouter(prefix="/cart", tags=["Shopping Cart"])
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 

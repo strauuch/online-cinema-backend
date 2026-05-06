@@ -1,19 +1,19 @@
-"""add_carts_models
+"""update_models
 
-Revision ID: 7f766a27e654
-Revises: 4b59a1afd0f7
-Create Date: 2026-05-05 23:19:30.376611
+Revision ID: b85cc611550a
+Revises: 7f766a27e654
+Create Date: 2026-05-06 14:56:46.859731
 
 """
-
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
 
+
 # revision identifiers, used by Alembic.
-revision: str = "7f766a27e654"
-down_revision: Union[str, Sequence[str], None] = "4b59a1afd0f7"
+revision: str = 'b85cc611550a'
+down_revision: Union[str, Sequence[str], None] = '7f766a27e654'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

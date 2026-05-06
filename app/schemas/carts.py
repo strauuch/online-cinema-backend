@@ -5,10 +5,6 @@ from datetime import datetime
 
 
 class CartMovieSchema(BaseModel):
-    """
-    Schema representing movie details within the shopping cart context.
-    """
-
     id: int
     name: str
     price: Decimal
@@ -19,10 +15,6 @@ class CartMovieSchema(BaseModel):
 
 
 class CartItemResponseSchema(BaseModel):
-    """
-    Schema representing a single entry in the shopping cart.
-    """
-
     id: int
     added_at: datetime
     movie: CartMovieSchema
@@ -31,10 +23,6 @@ class CartItemResponseSchema(BaseModel):
 
 
 class CartResponseSchema(BaseModel):
-    """
-    Schema for the complete user shopping cart, including the calculated total price.
-    """
-
     id: int
     user_id: int
     items: List[CartItemResponseSchema]
@@ -42,5 +30,13 @@ class CartResponseSchema(BaseModel):
         default=Decimal("0.00"),
         description="The sum of prices of all movies currently in the cart",
     )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CartItemAddedSchema(BaseModel):
+    message: str
+    movie_id: int
+    cart_id: int
 
     model_config = ConfigDict(from_attributes=True)

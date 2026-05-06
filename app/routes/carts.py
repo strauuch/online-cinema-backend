@@ -10,7 +10,7 @@ from database import get_db
 from database.models.accounts import UserModel
 from database.models.carts import CartModel, CartItemModel
 from database.models.movies import MovieModel
-from schemas.carts import CartResponseSchema, CartItemAddedSchema
+from schemas.carts import CartResponseSchema, CartItemAddedSchema, CartItemRemovedSchema
 from core.dependencies import get_current_user
 
 router = APIRouter(prefix="/cart", tags=["Shopping Cart"])
@@ -36,9 +36,8 @@ async def get_cart(
     - **Content**: Detailed list of movies (name, price, year, genres).
     - **Calculations**: Automatically computes the total price of all items.
     """
-    logger.info(f"User {current_user.id} requested their cart contents.")
-
     current_user_id = current_user.id
+    logger.info(f"User {current_user_id} requested their cart contents.")
 
     try:
         stmt = (
@@ -105,11 +104,10 @@ async def add_to_cart(
     - **Purchase Check**: (Placeholder) Checks if the movie was already bought.
     - **Duplicate Check**: Prevents adding the same movie twice.
     """
-    logger.info(
-        f"User {current_user.id} is attempting to add movie {movie_id} to cart."
-    )
-
     current_user_id = current_user.id
+    logger.info(
+        f"User {current_user_id} is attempting to add movie {movie_id} to cart."
+    )
 
     try:
         movie_stmt = select(MovieModel.id).where(MovieModel.id == movie_id)
@@ -159,4 +157,71 @@ async def add_to_cart(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while adding the item to the cart.",
+        )
+
+
+@router.delete(
+    "/item/{movie_id}",
+    response_model=CartItemRemovedSchema,
+    summary="Remove Movie from Cart",
+    status_code=status.HTTP_200_OK,
+    responses={
+        404: {"description": "Not Found - Movie not in cart."},
+        401: {"description": "Unauthorized - User not logged in."},
+    },
+)
+async def remove_from_cart(
+    movie_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> CartItemRemovedSchema:
+    """
+    Remove a specific movie from the current user's shopping cart.
+    - **Validation**: Checks if the item actually exists in the user's cart.
+    """
+    current_user_id = current_user.id
+    logger.info(f"User {current_user_id} is removing movie {movie_id} from cart.")
+
+    try:
+        cart_stmt = select(CartModel.id).where(CartModel.user_id == current_user_id)
+        cart_id = await db.scalar(cart_stmt)
+
+        if not cart_id:
+            logger.error(f"Cart missing for user {current_user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User cart not found.",
+            )
+
+        item_stmt = select(CartItemModel).where(
+            CartItemModel.cart_id == cart_id, CartItemModel.movie_id == movie_id
+        )
+        result = await db.execute(item_stmt)
+        cart_item = result.scalar_one_or_none()
+
+        if not cart_item:
+            logger.warning(
+                f"User {current_user_id} tried to remove non-existent item {movie_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="This movie is not in your cart.",
+            )
+
+        await db.delete(cart_item)
+        await db.commit()
+
+        logger.info(
+            f"Movie {movie_id} removed from cart {cart_id} for user {current_user_id}."
+        )
+        return CartItemRemovedSchema(
+            message="Movie removed from cart successfully.", movie_id=movie_id
+        )
+
+    except SQLAlchemyError as e:
+        await db.rollback()
+        logger.error(f"DB error while removing item from cart: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while removing the item from the cart.",
         )

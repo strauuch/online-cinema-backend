@@ -40,3 +40,10 @@ class CartItemAddedSchema(BaseModel):
     cart_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CartItemRemovedSchema(BaseModel):
+    message: str
+    movie_id: int
+
+    model_config = ConfigDict(from_attributes=True)

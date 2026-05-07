@@ -83,7 +83,7 @@ class MovieShortResponseSchema(BaseModel):
     imdb: float
     rating_avg: float = Field(..., description="Average rating from our users")
     rating_count: int = Field(..., description="Total number of ratings")
-    price: Decimal
+    price: Decimal = Field(default=Decimal("0.00"), examples=["4.90"])
     genres: List[GenreReadSchema]
 
     model_config = ConfigDict(from_attributes=True)
@@ -170,7 +170,7 @@ class MovieCreateSchema(BaseModel):
     time: int
     imdb: float
     description: str = Field(..., min_length=10)
-    price: Decimal
+    price: Decimal = Field(default=Decimal("0.00"), examples=["4.90"])
     certification_id: int
     genre_ids: List[int] = Field(..., min_length=1)
     star_ids: List[int] = Field(..., min_length=1)
@@ -207,7 +207,7 @@ class MovieUpdateSchema(BaseModel):
     time: Optional[int] = None
     imdb: Optional[float] = None
     description: Optional[str] = Field(None, min_length=10)
-    price: Optional[Decimal] = None
+    price: Optional[Decimal] = Field(default=None, examples=["4.90"])
     certification_id: Optional[int] = None
     genre_ids: Optional[List[int]] = None
     star_ids: Optional[List[int]] = None

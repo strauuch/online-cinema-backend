@@ -8,7 +8,7 @@ from datetime import datetime
 class CartMovieSchema(BaseModel):
     id: int
     name: str
-    price: Decimal
+    price: Decimal = Field(default=Decimal("0.00"), examples=["499.00"])
     year: int
     genres: List[str]
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from decimal import Decimal
 from datetime import datetime
 from typing import List
@@ -8,13 +8,13 @@ from database.models.enums import OrderStatusEnum
 
 class OrderItemOutSchema(BaseModel):
     movie_id: int
-    price_at_order: Decimal
+    price_at_order: Decimal = Field(default=Decimal("0.00"), examples=["49.00"])
 
 
 class OrderResponseSchema(BaseModel):
     id: int
     status: OrderStatusEnum
-    total_amount: Decimal
+    total_amount: Decimal = Field(default=Decimal("0.00"), examples=["49.00"])
     created_at: datetime
     items: List[OrderItemOutSchema]
 
@@ -30,7 +30,7 @@ class OrderMovieSchema(BaseModel):
 
 class OrderItemOutListSchema(BaseModel):
     movie_id: int
-    price_at_order: Decimal
+    price_at_order: Decimal = Field(default=Decimal("0.00"), examples=["49.00"])
     movie: OrderMovieSchema
 
     model_config = ConfigDict(from_attributes=True)
@@ -39,7 +39,7 @@ class OrderItemOutListSchema(BaseModel):
 class OrderListResponseSchema(BaseModel):
     id: int
     status: OrderStatusEnum
-    total_amount: Decimal
+    total_amount: Decimal = Field(default=Decimal("0.00"), examples=["499.00"])
     created_at: datetime
     items: List[OrderItemOutListSchema]
 

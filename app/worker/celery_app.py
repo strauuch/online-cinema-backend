@@ -22,4 +22,8 @@ celery_app.conf.beat_schedule = {
         "task": "app.worker.tasks.cleanup_expired_tokens",
         "schedule": crontab(minute=0),
     },
+    "sync-stuck-orders-every-30m": {
+        "task": "app.worker.tasks.sync_stuck_orders",
+        "schedule": crontab(minute="*/30"),
+    },
 }

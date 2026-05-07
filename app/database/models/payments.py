@@ -22,7 +22,7 @@ class PaymentModel(Base):
         ForeignKey("orders.id", ondelete="CASCADE"), nullable=False
     )
     status: Mapped[PaymentStatusEnum] = mapped_column(
-        Enum(PaymentStatusEnum), default=PaymentStatusEnum.SUCCESSFUL, nullable=False
+        Enum(PaymentStatusEnum), default=PaymentStatusEnum.PENDING, nullable=False
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     external_payment_id: Mapped[Optional[str]] = mapped_column(

@@ -20,3 +20,9 @@ class EmailSenderInterface(ABC):
         self, email: str, login_link: str
     ) -> None:
         pass
+
+    @abstractmethod
+    async def send_order_confirmation_email(
+        self, email: str, order_id: int, amount: str
+    ) -> None:
+        pass

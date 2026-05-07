@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "sk_test_your_secret_key")
     STRIPE_PUBLIC_KEY: str = os.getenv("STRIPE_PUBLIC_KEY", "sk_test_your_public_key")
     STRIPE_CURRENCY: str = os.getenv("STRIPE_CURRENCY", "eur")
+    STRIPE_WEBHOOK_SECRET: str = os.getenv(
+        "STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret"
+    )
 
     # S3_Storage
     S3_STORAGE_HOST: str = os.getenv("MINIO_HOST", "minio")

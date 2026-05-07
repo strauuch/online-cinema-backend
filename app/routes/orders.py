@@ -26,6 +26,11 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# USER ROUTES
+# =============================================================================
+
+
 @router.post(
     "/",
     response_model=OrderResponseSchema,
@@ -225,3 +230,78 @@ async def get_order_details(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while fetching order details.",
         )
+
+
+@router.post(
+    "/{order_id}/cancel",
+    response_model=OrderResponseSchema,
+    summary="Cancel Pending Order",
+)
+async def cancel_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> OrderResponseSchema:
+    """
+    Cancel an existing order if it is still in PENDING status.
+    - **Ownership**: User can only cancel their own orders.
+    - **Status Check**: Only orders with 'pending' status can be cancelled.
+    - **Effect**: Changes status to 'cancelled'. Items remain in the order record for history.
+    """
+    current_user_id = current_user.id
+    logger.info(f"User {current_user_id} requested cancellation for order {order_id}.")
+
+    try:
+        stmt = (
+            select(OrderModel)
+            .where(OrderModel.id == order_id, OrderModel.user_id == current_user_id)
+            .options(selectinload(OrderModel.items).selectinload(OrderItemModel.movie))
+        )
+        result = await db.execute(stmt)
+        order = result.scalar_one_or_none()
+
+        if not order:
+            logger.warning(
+                f"Cancellation failed: Order {order_id} not found for user {current_user_id}."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Order not found."
+            )
+
+        if order.status != OrderStatusEnum.PENDING:
+            logger.warning(
+                f"User {current_user_id} tried to cancel order {order_id} with status {order.status}."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot cancel an order that is already {order.status.value}.",
+            )
+
+        order.status = OrderStatusEnum.CANCELLED
+
+        await db.commit()
+        await db.refresh(order)
+
+        logger.info(
+            f"Order {order_id} successfully cancelled by user {current_user_id}."
+        )
+
+        return OrderResponseSchema.model_validate(order)
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        await db.rollback()
+        logger.error(
+            f"Database error during order {order_id} cancellation: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to cancel the order.",
+        )
+
+
+# =============================================================================
+# ADMIN ROUTES
+# =============================================================================

@@ -12,6 +12,7 @@ from core.dependencies import (
 )
 from database import get_db
 from database.models.accounts import UserModel
+from database.models.enums import OrderStatusEnum
 from database.models.movies import (
     MovieModel,
     GenreModel,
@@ -19,6 +20,7 @@ from database.models.movies import (
     DirectorModel,
     CertificationModel,
 )
+from database.models.orders import OrderItemModel, OrderModel
 from schemas.movies import (
     MovieDetailResponseSchema,
     MovieCreateSchema,
@@ -1036,6 +1038,25 @@ async def delete_movie(
         )
 
     try:
+        purchase_check_stmt = (
+            select(func.count(OrderItemModel.id))
+            .join(OrderModel, OrderItemModel.order_id == OrderModel.id)
+            .where(
+                OrderItemModel.movie_id == movie.id,
+                OrderModel.status == OrderStatusEnum.PAID
+            )
+        )
+        purchase_count = await db.scalar(purchase_check_stmt) or 0
+
+        if purchase_count > 0:
+            logger.warning(
+                f"Delete denied: Movie '{movie.name}' ({movie_uuid}) has {purchase_count} active purchases."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete movie: this movie has been purchased by users. Use soft delete instead (coming soon)."
+            )
+
         movie_name = movie.name
         logger.debug(f"Processing deletion of movie '{movie_name}'")
 

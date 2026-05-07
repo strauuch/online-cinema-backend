@@ -9,6 +9,7 @@ from routes import (
     movies_admin_router,
     carts_router,
     orders_router,
+    payments_router,
 )
 
 logging.basicConfig(
@@ -43,6 +44,11 @@ app.include_router(
     orders_router,
     prefix=f"{api_version_prefix}/order",
     tags=["orders"],
+)
+app.include_router(
+    payments_router,
+    prefix=f"{api_version_prefix}/payment",
+    tags=["payments"],
 )
 
 

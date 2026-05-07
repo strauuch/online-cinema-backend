@@ -1,16 +1,17 @@
 import logging
+
+from datetime import date, datetime, time
 from decimal import Decimal
-from typing import List
-
+from typing import Optional
 from fastapi import APIRouter, Depends, status, HTTPException, Query
-
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, and_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.dependencies import (
     get_current_user,
+    get_current_admin_user,
 )
 from database import get_db
 from database.models.accounts import (
@@ -19,7 +20,11 @@ from database.models.accounts import (
 from database.models.carts import CartModel, CartItemModel
 from database.models.enums import OrderStatusEnum
 from database.models.orders import OrderModel, OrderItemModel
-from schemas.orders import OrderResponseSchema, OrderListResponseSchema
+from schemas.orders import (
+    OrderResponseSchema,
+    OrderListResponseSchema,
+    AdminOrderResponseSchema,
+)
 from schemas.pagination import Page
 
 router = APIRouter()
@@ -245,8 +250,8 @@ async def cancel_order(
     """
     Cancel an existing order if it is still in PENDING status.
     - **Ownership**: User can only cancel their own orders.
-    - **Status Check**: Only orders with 'pending' status can be cancelled.
-    - **Effect**: Changes status to 'cancelled'. Items remain in the order record for history.
+    - **Status Check**: Only orders with 'pending' status can be canceled.
+    - **Effect**: Changes status to 'canceled'. Items remain in the order record for history.
     """
     current_user_id = current_user.id
     logger.info(f"User {current_user_id} requested cancellation for order {order_id}.")
@@ -277,7 +282,7 @@ async def cancel_order(
                 detail=f"Cannot cancel an order that is already {order.status.value}.",
             )
 
-        order.status = OrderStatusEnum.CANCELLED
+        order.status = OrderStatusEnum.CANCELED
 
         await db.commit()
         await db.refresh(order)
@@ -305,3 +310,85 @@ async def cancel_order(
 # =============================================================================
 # ADMIN ROUTES
 # =============================================================================
+
+
+@router.get(
+    "/",
+    response_model=Page[AdminOrderResponseSchema],
+    summary="Get All Orders with Filters (Paginated) [Admin]",
+)
+async def admin_get_all_orders(
+    user_id: Optional[int] = Query(None, description="Filter by User ID"),
+    order_status: Optional[OrderStatusEnum] = Query(
+        None, description="Filter by Order Status"
+    ),
+    date_from: Optional[date] = Query(
+        None, description="Filter from date (YYYY-MM-DD)"
+    ),
+    date_to: Optional[date] = Query(None, description="Filter to date (YYYY-MM-DD)"),
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    admin: UserModel = Depends(get_current_admin_user),
+) -> Page[AdminOrderResponseSchema]:
+    """
+    Retrieve all orders across the platform with administrative filters.
+    - **Filters**: User, Status, and Date Range.
+    - **Pagination**: Standard limit/offset logic.
+    - **Access**: Strictly restricted to ADMIN group.
+    """
+    logger.info(
+        f"Admin {admin.email} is fetching all orders with filters: "
+        f"user_id={user_id}, status={order_status}, range={date_from} to {date_to}"
+    )
+
+    try:
+        query = select(OrderModel).options(
+            selectinload(OrderModel.items).selectinload(OrderItemModel.movie),
+            selectinload(OrderModel.user),
+        )
+
+        filters = []
+        if user_id:
+            filters.append(OrderModel.user_id == user_id)
+        if order_status:
+            filters.append(OrderModel.status == order_status)
+        if date_from:
+            dt_from = datetime.combine(date_from, time.min)
+            filters.append(OrderModel.created_at >= dt_from)
+        if date_to:
+            dt_to = datetime.combine(date_to, time.max)
+            filters.append(OrderModel.created_at <= dt_to)
+
+        if filters:
+            query = query.where(and_(*filters))
+
+        count_stmt = select(func.count()).select_from(OrderModel)
+        if filters:
+            count_stmt = count_stmt.where(and_(*filters))
+
+        total_count = await db.scalar(count_stmt) or 0
+
+        offset = (page - 1) * size
+        stmt = query.order_by(OrderModel.created_at.desc()).offset(offset).limit(size)
+        result = await db.execute(stmt)
+        orders = result.scalars().all()
+
+        total_pages = (total_count + size - 1) // size if total_count > 0 else 0
+
+        logger.info(f"Admin request processed. Found {total_count} total orders.")
+
+        return Page(
+            items=[AdminOrderResponseSchema.model_validate(order) for order in orders],
+            total=total_count,
+            page=page,
+            size=size,
+            total_pages=total_pages,
+        )
+
+    except Exception as e:
+        logger.error(f"Error in admin_get_all_orders: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during order retrieval.",
+        )

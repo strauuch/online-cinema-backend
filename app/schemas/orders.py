@@ -13,18 +13,15 @@ class OrderItemOutSchema(BaseModel):
 
 class OrderResponseSchema(BaseModel):
     id: int
-    status: str
+    status: OrderStatusEnum
     total_amount: Decimal
     created_at: datetime
     items: List[OrderItemOutSchema]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OrderMovieSchema(BaseModel):
-    """Simplified movie info for order history."""
-
     id: int
     name: str
 
@@ -32,8 +29,6 @@ class OrderMovieSchema(BaseModel):
 
 
 class OrderItemOutListSchema(BaseModel):
-    """Schema for individual items within an order."""
-
     movie_id: int
     price_at_order: Decimal
     movie: OrderMovieSchema
@@ -42,8 +37,6 @@ class OrderItemOutListSchema(BaseModel):
 
 
 class OrderListResponseSchema(BaseModel):
-    """Full order details for the user."""
-
     id: int
     status: OrderStatusEnum
     total_amount: Decimal
@@ -51,3 +44,14 @@ class OrderListResponseSchema(BaseModel):
     items: List[OrderItemOutListSchema]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class OrderUserSchema(BaseModel):
+    id: int
+    email: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminOrderResponseSchema(OrderListResponseSchema):
+    user: OrderUserSchema

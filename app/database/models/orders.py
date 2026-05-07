@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, List
 from decimal import Decimal
-from sqlalchemy import ForeignKey, DateTime, Numeric, func, Enum
+from sqlalchemy import ForeignKey, DateTime, Numeric, func, Enum, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 from database.models.enums import OrderStatusEnum
@@ -50,3 +50,5 @@ class OrderItemModel(Base):
 
     order: Mapped["OrderModel"] = relationship("OrderModel", back_populates="items")
     movie: Mapped["MovieModel"] = relationship("MovieModel")
+
+    UniqueConstraint("order_id", "movie_id", name="unique_movie_in_order")

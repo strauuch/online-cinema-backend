@@ -3,7 +3,6 @@ import decimal
 import uuid as python_uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
-
 from sqlalchemy import (
     String,
     Float,

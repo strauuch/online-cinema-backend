@@ -28,6 +28,14 @@ class Settings(BaseSettings):
 
     FRONTEND_URL: str = "http://127.0.0.1"
 
+    # Stripe
+    STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "sk_test_your_secret_key")
+    STRIPE_PUBLIC_KEY: str = os.getenv("STRIPE_PUBLIC_KEY", "sk_test_your_public_key")
+    STRIPE_CURRENCY: str = os.getenv("STRIPE_CURRENCY", "eur")
+    STRIPE_WEBHOOK_SECRET: str = os.getenv(
+        "STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret"
+    )
+
     # S3_Storage
     S3_STORAGE_HOST: str = os.getenv("MINIO_HOST", "minio")
     S3_STORAGE_PORT: int = int(os.getenv("MINIO_PORT", 9000))
@@ -81,6 +89,12 @@ class Settings(BaseSettings):
     @property
     def password_reset_link(self) -> str:
         return f"{self.FRONTEND_URL}/accounts/password-reset-complete/"
+
+    # Frontend Redirects
+    PAYMENT_SUCCESS_URL: str = (
+        "http://localhost:3000/order/success?session_id={CHECKOUT_SESSION_ID}"
+    )
+    PAYMENT_CANCEL_URL: str = "http://localhost:3000/order/cancel"
 
 
 settings = Settings()

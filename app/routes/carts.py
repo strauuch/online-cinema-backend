@@ -1,4 +1,5 @@
 import logging
+
 from decimal import Decimal
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy import delete
@@ -10,7 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from database.models.accounts import UserModel
 from database.models.carts import CartModel, CartItemModel
+from database.models.enums import OrderStatusEnum
 from database.models.movies import MovieModel
+from database.models.orders import OrderItemModel, OrderModel
 from schemas.carts import (
     CartResponseSchema,
     CartItemAddedSchema,
@@ -19,7 +22,7 @@ from schemas.carts import (
 )
 from core.dependencies import get_current_user, get_current_admin_user
 
-router = APIRouter(prefix="/cart", tags=["Shopping Cart"])
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
@@ -124,11 +127,24 @@ async def add_to_cart(
                 detail=f"Movie with ID {movie_id} not found.",
             )
 
-        is_already_purchased = False
-        if is_already_purchased:
+        purchase_stmt = (
+            select(OrderItemModel.id)
+            .join(OrderModel, OrderItemModel.order_id == OrderModel.id)
+            .where(
+                OrderModel.user_id == current_user_id,
+                OrderItemModel.movie_id == movie_id,
+                OrderModel.status == OrderStatusEnum.PAID,
+            )
+        )
+        already_purchased = await db.scalar(purchase_stmt)
+
+        if already_purchased:
+            logger.warning(
+                f"User {current_user_id} tried to add already owned movie {movie_id}."
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="You have already purchased this movie. Repeat purchases are not allowed.",
+                detail="You have already purchased this movie. Check your library.",
             )
 
         cart_stmt = select(CartModel.id).where(CartModel.user_id == current_user_id)

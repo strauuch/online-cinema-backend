@@ -140,3 +140,22 @@ class EmailSender(EmailSenderInterface):
         html_content = template.render(email=email, login_link=login_link)
         subject = "Your Password Has Been Successfully Reset"
         await self._send_email(email, subject, html_content)
+
+    async def send_order_confirmation_email(
+        self, email: str, order_id: int, amount: str, history_link: str
+    ) -> None:
+        """
+        Send a payment confirmation email asynchronously after a successful transaction.
+
+        Args:
+            email (str): Recipient's email address.
+            order_id (int): The ID of the paid order.
+            amount (str): Formatted string of the total amount paid.
+            history_link (str): URL to the user's order history page.
+        """
+        template = self._env.get_template("payment_confirmation.html")
+        html_content = template.render(
+            email=email, order_id=order_id, amount=amount, history_link=history_link
+        )
+        subject = f"Order Confirmation #{order_id}"
+        await self._send_email(email, subject, html_content)

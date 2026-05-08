@@ -132,13 +132,15 @@ async def add_to_cart(
             .where(
                 OrderModel.user_id == current_user_id,
                 OrderItemModel.movie_id == movie_id,
-                OrderModel.status == OrderStatusEnum.PAID
+                OrderModel.status == OrderStatusEnum.PAID,
             )
         )
         already_purchased = await db.scalar(purchase_stmt)
 
         if already_purchased:
-            logger.warning(f"User {current_user_id} tried to add already owned movie {movie_id}.")
+            logger.warning(
+                f"User {current_user_id} tried to add already owned movie {movie_id}."
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="You have already purchased this movie. Check your library.",

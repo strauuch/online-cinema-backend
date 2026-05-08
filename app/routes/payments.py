@@ -85,7 +85,6 @@ async def finalize_payment(
 
     logger.info(f"Order {order_id} finalized and confirmation email enqueued.")
     return True
-    return True
 
 
 # =============================================================================

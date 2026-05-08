@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import stripe
 from sqlalchemy.orm import sessionmaker
@@ -84,7 +84,14 @@ def sync_stuck_orders():
         )
 
         for order in pending_orders:
-            sessions = stripe.checkout.Session.list(limit=100)
+            sessions = stripe.checkout.Session.list(
+                limit=100,
+                created={
+                    "gte": int(
+                        (datetime.now(timezone.utc) - timedelta(hours=2)).timestamp()
+                    )
+                },
+            )
             for s in sessions.data:
                 if (
                     s.metadata.get("order_id") == str(order.id)

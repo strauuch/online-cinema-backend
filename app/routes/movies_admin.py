@@ -1043,7 +1043,7 @@ async def delete_movie(
             .join(OrderModel, OrderItemModel.order_id == OrderModel.id)
             .where(
                 OrderItemModel.movie_id == movie.id,
-                OrderModel.status == OrderStatusEnum.PAID
+                OrderModel.status == OrderStatusEnum.PAID,
             )
         )
         purchase_count = await db.scalar(purchase_check_stmt) or 0
@@ -1054,7 +1054,7 @@ async def delete_movie(
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot delete movie: this movie has been purchased by users. Use soft delete instead (coming soon)."
+                detail="Cannot delete movie: this movie has been purchased by users. Use soft delete instead (coming soon).",
             )
 
         movie_name = movie.name

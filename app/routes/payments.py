@@ -3,10 +3,10 @@ import stripe
 
 from datetime import date
 from typing import Optional
-from fastapi import APIRouter, Depends, status, HTTPException, Request
+from fastapi import APIRouter, Depends, status, HTTPException, Request, Query
 from sqlalchemy import select, func, and_, cast, Date
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, Query
+from sqlalchemy.orm import selectinload
 
 from core.dependencies import get_current_user, get_current_admin_user
 from database import get_db

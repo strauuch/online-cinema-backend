@@ -50,7 +50,11 @@ logger = logging.getLogger(__name__)
 
 async def get_movie_id_by_uuid(movie_uuid: UUID, db: AsyncSession) -> int:
     """Resolves a public Movie UUID to an internal database Integer ID."""
-    stmt = select(MovieModel.id).where(MovieModel.uuid == movie_uuid)
+    stmt = (
+        select(MovieModel.id)
+        .where(MovieModel.uuid == movie_uuid)
+        .where(MovieModel.is_deleted == False)
+    )
     result = await db.execute(stmt)
     movie_id = result.scalar_one_or_none()
     if not movie_id:
@@ -460,7 +464,11 @@ async def list_movies(
         f"Movie list requested. Page: {page}, Size: {size}, Query: '{q}', Sort: {sort_by} {order}"
     )
 
-    stmt = select(MovieModel).options(selectinload(MovieModel.genres))
+    stmt = (
+        select(MovieModel)
+        .options(selectinload(MovieModel.genres))
+        .where(MovieModel.is_deleted == False)
+    )
 
     if only_favorites:
         if not current_user:
@@ -563,6 +571,7 @@ async def get_movie_detail(
             joinedload(MovieModel.certification),
         )
         .where(MovieModel.uuid == movie_uuid)
+        .where(MovieModel.is_deleted == False)
     )
 
     try:

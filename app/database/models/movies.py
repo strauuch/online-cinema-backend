@@ -146,6 +146,10 @@ class MovieModel(Base):
     certification_id: Mapped[int] = mapped_column(
         ForeignKey("certifications.id"), nullable=False
     )
+    is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     certification: Mapped["CertificationModel"] = relationship(
         "CertificationModel", back_populates="movies"

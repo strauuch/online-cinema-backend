@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, List, Optional
 from decimal import Decimal
 from sqlalchemy import ForeignKey, DateTime, Numeric, func, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from database import Base
 from database.models.enums import PaymentStatusEnum
 

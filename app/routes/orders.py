@@ -1,10 +1,9 @@
 import logging
+import stripe
 
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional
-
-import stripe
 from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy import select, delete, func, and_
 from sqlalchemy.exc import SQLAlchemyError

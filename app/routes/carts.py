@@ -119,7 +119,9 @@ async def add_to_cart(
     )
 
     try:
-        movie_stmt = select(MovieModel.id).where(MovieModel.id == movie_id)
+        movie_stmt = select(MovieModel.id).where(
+            MovieModel.id == movie_id, MovieModel.is_deleted == False
+        )
         movie_exists = await db.scalar(movie_stmt)
         if not movie_exists:
             raise HTTPException(

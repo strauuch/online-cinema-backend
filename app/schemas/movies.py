@@ -235,3 +235,19 @@ class MovieUpdateSchema(BaseModel):
     @classmethod
     def check_time(cls, v):
         return movies_validators.validate_movie_duration(v) if v is not None else v
+
+
+class MovieDeletedShortResponseSchema(BaseModel):
+    id: int
+    deleted_at: datetime
+    is_deleted: bool
+    uuid: UUID
+    name: str
+    year: int
+    imdb: float
+    rating_avg: float = Field(..., description="Average rating from our users")
+    rating_count: int = Field(..., description="Total number of ratings")
+    price: Decimal = Field(default=Decimal("0.00"), examples=["4.90"])
+    genres: List[GenreReadSchema]
+
+    model_config = ConfigDict(from_attributes=True)

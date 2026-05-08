@@ -37,6 +37,7 @@ from schemas.movies import (
     CertificationReadSchema,
     CertificationCreateSchema,
     CertificationUpdateSchema,
+    MovieDeletedShortResponseSchema,
 )
 from schemas.pagination import Page
 
@@ -874,6 +875,55 @@ async def create_movie(
     return new_movie
 
 
+@router.get(
+    "/admin/deleted/",
+    response_model=Page[MovieDeletedShortResponseSchema],
+    status_code=status.HTTP_200_OK,
+    summary="List soft-deleted movies [Moderator | Admin]",
+)
+async def list_deleted_movies(
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    admin: UserModel = Depends(get_current_staff_user),
+) -> Page[MovieDeletedShortResponseSchema]:
+    """
+    Returns a paginated list of movies that have been soft-deleted.
+    Used for administrative review and potential restoration.
+    """
+    logger.info(f"Admin {admin.id} requested list of deleted movies. Page: {page}")
+
+    try:
+        stmt = (
+            select(MovieModel)
+            .options(selectinload(MovieModel.genres))
+            .where(MovieModel.is_deleted == True)
+            .order_by(MovieModel.deleted_at.desc())
+        )
+
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_count = await db.scalar(count_stmt) or 0
+
+        offset = (page - 1) * size
+        result = await db.execute(stmt.limit(size).offset(offset))
+        movies = list(result.scalars().all())
+
+        return Page(
+            items=movies,
+            total=total_count,
+            page=page,
+            size=size,
+            total_pages=(total_count + size - 1) // size if total_count > 0 else 0,
+        )
+
+    except SQLAlchemyError as e:
+        logger.error(f"Error fetching deleted movies: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve deleted movies.",
+        )
+
+
 @router.patch(
     "/{movie_uuid}/",
     response_model=MovieDetailResponseSchema,
@@ -1054,13 +1104,14 @@ async def delete_movie(
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot delete movie: this movie has been purchased by users. Use soft delete instead (coming soon).",
+                detail="Cannot delete movie.",
             )
 
         movie_name = movie.name
         logger.debug(f"Processing deletion of movie '{movie_name}'")
 
-        await db.delete(movie)
+        movie.is_deleted = True
+        movie.deleted_at = func.now()
         await db.commit()
 
         logger.info(
@@ -1078,3 +1129,72 @@ async def delete_movie(
         )
 
     return None
+
+
+@router.patch(
+    "/{movie_uuid}/restore/",
+    status_code=status.HTTP_200_OK,
+    summary="Restore a soft-deleted movie [Moderator | Admin]",
+    responses={
+        200: {"description": "Movie restored successfully."},
+        401: {"description": "Unauthorized."},
+        403: {"description": "Forbidden - Staff access required."},
+        404: {"description": "Not Found - Movie not found."},
+        400: {"description": "Bad Request - Movie is not deleted."},
+        500: {"description": "Internal Server Error."},
+    },
+)
+async def restore_movie(
+    movie_uuid: UUID,
+    current_user: UserModel = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Restores a previously soft-deleted movie by its UUID.
+    - **Effect**: Sets 'is_deleted' to False and clears 'deleted_at'.
+    - **Validation**: Checks if the movie exists and is actually in a deleted state.
+    """
+    current_user_id = current_user.id
+    logger.info(
+        f"Staff user {current_user_id} is attempting to restore movie UUID: {movie_uuid}"
+    )
+
+    stmt = select(MovieModel).where(MovieModel.uuid == movie_uuid)
+    result = await db.execute(stmt)
+    movie = result.scalar_one_or_none()
+
+    if not movie:
+        logger.warning(f"Restore failed: Movie {movie_uuid} not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found."
+        )
+
+    if not movie.is_deleted:
+        logger.info(f"Restore skipped: Movie '{movie.name}' is already active.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Movie is not deleted and does not require restoration.",
+        )
+
+    try:
+        movie_name = movie.name
+        movie.is_deleted = False
+        movie.deleted_at = None
+
+        await db.commit()
+
+        logger.info(
+            f"Movie '{movie_name}' (UUID: {movie_uuid}) successfully restored by staff {current_user_id}"
+        )
+        return {"message": f"Movie '{movie_name}' has been restored."}
+
+    except SQLAlchemyError as e:
+        await db.rollback()
+        logger.error(
+            f"Database error during restoration of movie {movie_uuid}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to restore the movie from the database.",
+        )

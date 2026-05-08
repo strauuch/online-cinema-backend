@@ -3,6 +3,8 @@ import logging
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional
+
+import stripe
 from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy import select, delete, func, and_
 from sqlalchemy.exc import SQLAlchemyError
@@ -281,6 +283,26 @@ async def cancel_order(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot cancel an order that is already {order.status.value}.",
             )
+
+        try:
+            active_sessions = stripe.checkout.Session.list(
+                limit=3, customer_details={"email": current_user.email}
+            )
+
+            for session in active_sessions.data:
+                if (
+                    session.metadata.get("order_id") == str(order_id)
+                    and session.status == "open"
+                ):
+                    logger.warning(
+                        f"User {current_user_id} tried to cancel order {order_id} with active Stripe session."
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="You have an active payment session open. Please complete or expire it before canceling.",
+                    )
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error during cancellation check: {e}")
 
         order.status = OrderStatusEnum.CANCELED
 

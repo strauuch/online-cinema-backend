@@ -50,11 +50,7 @@ logger = logging.getLogger(__name__)
 
 async def get_movie_id_by_uuid(movie_uuid: UUID, db: AsyncSession) -> int:
     """Resolves a public Movie UUID to an internal database Integer ID."""
-    stmt = (
-        select(MovieModel.id)
-        .where(MovieModel.uuid == movie_uuid)
-        .where(MovieModel.is_deleted == False)
-    )
+    stmt = select(MovieModel.id).where(MovieModel.uuid == movie_uuid)
     result = await db.execute(stmt)
     movie_id = result.scalar_one_or_none()
     if not movie_id:
@@ -280,7 +276,6 @@ async def like_comment(
     If a like already exists, it is removed.
     """
     current_user_id = current_user.id
-    current_user_email = current_user.email
     logger.debug(f"User {current_user_id} toggling like on comment {comment_id}")
 
     stmt = (
@@ -318,7 +313,7 @@ async def like_comment(
             notification = NotificationModel(
                 user_id=comment.user_id,
                 notification_type=NotificationType.COMMENT_LIKE,
-                content=f"User {current_user_email} liked your comment",
+                content=f"User {current_user.get_display_name()} liked your comment",
                 link_to_id=str(comment.movie.uuid),
             )
 
@@ -464,11 +459,7 @@ async def list_movies(
         f"Movie list requested. Page: {page}, Size: {size}, Query: '{q}', Sort: {sort_by} {order}"
     )
 
-    stmt = (
-        select(MovieModel)
-        .options(selectinload(MovieModel.genres))
-        .where(MovieModel.is_deleted == False)
-    )
+    stmt = select(MovieModel).options(selectinload(MovieModel.genres))
 
     if only_favorites:
         if not current_user:
@@ -571,7 +562,6 @@ async def get_movie_detail(
             joinedload(MovieModel.certification),
         )
         .where(MovieModel.uuid == movie_uuid)
-        .where(MovieModel.is_deleted == False)
     )
 
     try:
@@ -713,7 +703,7 @@ async def add_comment(
             notification = NotificationModel(
                 user_id=parent_comment.user_id,
                 notification_type=NotificationType.COMMENT_REPLY,
-                content=f"User {current_user_email} replied to your comment",
+                content=f"User {current_user.get_display_name()} replied to your comment",
                 link_to_id=str(movie_uuid),
             )
             db.add(notification)

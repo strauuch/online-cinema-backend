@@ -136,6 +136,20 @@ class UserModel(Base):
     def validate_email(self, key, value):
         return validators.validate_email(value.lower())
 
+    def get_display_name(self) -> str:
+        """
+        Returns the name for notifications:
+        1. First, the first_name from the profile
+        2. If not present, the part of the email before the @
+        """
+        if self.profile and self.profile.first_name:
+            return self.profile.first_name.title()
+
+        if "@" in self.email:
+            return self.email.split("@")[0]
+
+        return self.email
+
 
 class UserProfileModel(Base):
     __tablename__ = "user_profiles"

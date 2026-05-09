@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from core.dependencies import get_accounts_email_notificator, get_s3_storage_client
 from main import app
 from database import Base, get_db
-from core.config import settings as get_settings
+from core.dependencies import get_settings
 from tests.doubles.stubs.emails import StubEmailSender
 from tests.doubles.fakes.storage import FakeS3Storage
 from tests.factories.user import UserFactory

@@ -7,7 +7,7 @@ from app.database.models.accounts import UserModel, RefreshTokenModel
 async def test_login_success(client, db_session, user_factory, jwt_manager):
     user = await user_factory.create_active_user(email="login@test.com")
 
-    response = await client.post("/api/v1/accounts/login/", json={
+    response = await client.post("/api/v1/accounts/login/", data={
         "username": user.email,
         "password": "StrongTestPass123!"
     })
@@ -27,7 +27,7 @@ async def test_login_success(client, db_session, user_factory, jwt_manager):
 async def test_login_inactive_user(client, db_session, user_factory):
     user = await user_factory.create_user(is_active=False, email="inactive@test.com")
 
-    response = await client.post("/api/v1/accounts/login/", json={
+    response = await client.post("/api/v1/accounts/login/", data={
         "username": user.email,
         "password": "StrongTestPass123!"
     })
@@ -38,7 +38,7 @@ async def test_login_inactive_user(client, db_session, user_factory):
 
 @pytest.mark.asyncio
 async def test_login_invalid_credentials(client):
-    response = await client.post("/api/v1/accounts/login/", json={
+    response = await client.post("/api/v1/accounts/login/", data={
         "username": "wrong@example.com",
         "password": "WrongPass123!"
     })
@@ -49,15 +49,13 @@ async def test_login_invalid_credentials(client):
 @pytest.mark.asyncio
 async def test_logout_success(client, db_session, user_factory, jwt_manager):
     user = await user_factory.create_active_user()
-    # Логинимся
-    login_resp = await client.post("/api/v1/accounts/login/", json={
+    login_resp = await client.post("/api/v1/accounts/login/", data={
         "username": user.email,
         "password": "StrongTestPass123!"
     })
     refresh_token = login_resp.json()["refresh_token"]
 
-    # Логаут
-    response = await client.post("/api/v1/accounts/logout/", json={
+    response = await client.post("/api/v1/accounts/logout/", data={
         "refresh_token": refresh_token
     }, headers={"Authorization": f"Bearer {login_resp.json()['access_token']}"})
 
@@ -68,13 +66,13 @@ async def test_logout_success(client, db_session, user_factory, jwt_manager):
 @pytest.mark.asyncio
 async def test_refresh_token_success(client, db_session, user_factory, jwt_manager):
     user = await user_factory.create_active_user()
-    login_resp = await client.post("/api/v1/accounts/login/", json={
+    login_resp = await client.post("/api/v1/accounts/login/", data={
         "username": user.email,
         "password": "StrongTestPass123!"
     })
     refresh_token = login_resp.json()["refresh_token"]
 
-    response = await client.post("/api/v1/accounts/refresh/", json={
+    response = await client.post("/api/v1/accounts/refresh/", data={
         "refresh_token": refresh_token
     })
 

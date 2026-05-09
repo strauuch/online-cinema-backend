@@ -8,15 +8,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from core.dependencies import (
+from app.core.dependencies import (
     get_current_user,
     update_movie_rating_stats,
     get_current_user_optional,
 )
-from database import get_db
-from database.models.accounts import UserModel
-from database.models.enums import NotificationType, UserGroupEnum
-from database.models.movies import (
+from app.database import get_db
+from app.database.models.accounts import UserModel
+from app.database.models.enums import NotificationType, UserGroupEnum
+from app.database.models.movies import (
     MovieModel,
     GenreModel,
     StarModel,
@@ -29,8 +29,8 @@ from database.models.movies import (
     NotificationModel,
     CommentLikeModel,
 )
-from schemas.accounts import MessageResponseSchema
-from schemas.movies import (
+from app.schemas.accounts import MessageResponseSchema
+from app.schemas.movies import (
     MovieShortResponseSchema,
     MovieDetailResponseSchema,
     GenreWithCountSchema,
@@ -41,7 +41,7 @@ from schemas.movies import (
     CommentReadSchema,
     CommentUpdateSchema,
 )
-from schemas.pagination import Page
+from app.schemas.pagination import Page
 
 router = APIRouter()
 

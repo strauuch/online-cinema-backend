@@ -20,8 +20,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
-from database import Base
-from database.models.enums import NotificationType
+from app.database import Base
+from app.database.models.enums import NotificationType
 
 if TYPE_CHECKING:
     from database.models.accounts import UserModel

@@ -16,11 +16,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
-from database import Base
-from database.models.enums import UserGroupEnum, GenderEnum
-from database.validators import accounts_validators as validators
-from security.passwords import hash_password, verify_password
-from security.utils import generate_secure_token
+from app.database import Base
+from app.database.models.enums import UserGroupEnum, GenderEnum
+from app.database.validators import accounts_validators as validators
+from app.security.passwords import hash_password, verify_password
+from app.security.utils import generate_secure_token
 
 logger = logging.getLogger(__name__)
 

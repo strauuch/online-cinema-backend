@@ -4,8 +4,8 @@ from decimal import Decimal
 from sqlalchemy import ForeignKey, DateTime, Numeric, func, Enum, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database import Base
-from database.models.enums import OrderStatusEnum
+from app.database import Base
+from app.database.models.enums import OrderStatusEnum
 
 if TYPE_CHECKING:
     from database.models.accounts import UserModel

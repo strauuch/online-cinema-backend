@@ -3,8 +3,8 @@ from decimal import Decimal
 from datetime import datetime
 from typing import Optional
 
-from database.models.enums import PaymentStatusEnum
-from schemas.orders import OrderUserSchema
+from app.database.models.enums import PaymentStatusEnum
+from app.schemas.orders import OrderUserSchema
 
 
 class PaymentItemResponseSchema(BaseModel):

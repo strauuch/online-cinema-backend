@@ -4,8 +4,8 @@ from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator
 
-from database.validators import movies_validators
-from database.models.enums import NotificationType
+from app.database.validators import movies_validators
+from app.database.models.enums import NotificationType
 
 
 class GenreCreateSchema(BaseModel):

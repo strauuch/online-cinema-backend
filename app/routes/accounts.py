@@ -10,8 +10,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from core.config import Settings
-from core.dependencies import (
+from app.core.config import Settings
+from app.core.dependencies import (
     get_jwt_auth_manager,
     get_settings,
     get_accounts_email_notificator,
@@ -19,8 +19,8 @@ from core.dependencies import (
     get_s3_storage_client,
     get_current_admin_user,
 )
-from database import get_db
-from database.models.accounts import (
+from app.database import get_db
+from app.database.models.accounts import (
     UserModel,
     UserGroupModel,
     UserGroupEnum,
@@ -29,10 +29,10 @@ from database.models.accounts import (
     RefreshTokenModel,
     UserProfileModel,
 )
-from database.models.carts import CartModel
-from exceptions.security import BaseSecurityError
-from notifications import EmailSenderInterface
-from schemas.accounts import (
+from app.database.models.carts import CartModel
+from app.exceptions.security import BaseSecurityError
+from app.notifications import EmailSenderInterface
+from app.schemas.accounts import (
     UserRegistrationRequestSchema,
     UserRegistrationResponseSchema,
     MessageResponseSchema,
@@ -52,9 +52,9 @@ from schemas.accounts import (
     AdminUserDetailResponseSchema,
     UserActivationResendRequestSchema,
 )
-from schemas.pagination import Page
-from security.interfaces import JWTAuthManagerInterface
-from storages.interfaces import S3StorageInterface
+from app.schemas.pagination import Page
+from app.security.interfaces import JWTAuthManagerInterface
+from app.storages.interfaces import S3StorageInterface
 
 router = APIRouter()
 

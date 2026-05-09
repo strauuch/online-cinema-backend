@@ -7,21 +7,21 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from core.dependencies import (
+from app.core.dependencies import (
     get_current_staff_user,
 )
-from database import get_db
-from database.models.accounts import UserModel
-from database.models.enums import OrderStatusEnum
-from database.models.movies import (
+from app.database import get_db
+from app.database.models.accounts import UserModel
+from app.database.models.enums import OrderStatusEnum
+from app.database.models.movies import (
     MovieModel,
     GenreModel,
     StarModel,
     DirectorModel,
     CertificationModel,
 )
-from database.models.orders import OrderItemModel, OrderModel
-from schemas.movies import (
+from app.database.models.orders import OrderItemModel, OrderModel
+from app.schemas.movies import (
     MovieDetailResponseSchema,
     MovieCreateSchema,
     MovieUpdateSchema,
@@ -39,7 +39,7 @@ from schemas.movies import (
     CertificationUpdateSchema,
     MovieDeletedShortResponseSchema,
 )
-from schemas.pagination import Page
+from app.schemas.pagination import Page
 
 router = APIRouter(dependencies=[Depends(get_current_staff_user)])
 

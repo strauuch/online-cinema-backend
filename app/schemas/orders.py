@@ -3,7 +3,7 @@ from decimal import Decimal
 from datetime import datetime
 from typing import List
 
-from database.models.enums import OrderStatusEnum
+from app.database.models.enums import OrderStatusEnum
 
 
 class OrderItemOutSchema(BaseModel):

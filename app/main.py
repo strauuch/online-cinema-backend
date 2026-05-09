@@ -2,8 +2,8 @@ import logging
 
 from fastapi import FastAPI
 
-from core.config import settings
-from routes import (
+from app.core.config import settings
+from app.routes import (
     accounts_router,
     movies_user_router,
     movies_admin_router,

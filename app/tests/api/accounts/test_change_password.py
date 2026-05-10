@@ -24,6 +24,19 @@ async def test_change_password_success(authenticated_client, db_session, user_fa
 
 
 @pytest.mark.asyncio
+async def test_change_password_wrong_old_password(authenticated_client):
+    response = await authenticated_client.post(
+        "/api/v1/accounts/password-change/",
+        json={
+            "old_password": "WrongOld123!",
+            "new_password": "NewPass123!"
+        }
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid old password."
+
+
+@pytest.mark.asyncio
 async def test_change_password_wrong_old(authenticated_client):
     response = await authenticated_client.post(
         "/api/v1/accounts/password-change/",

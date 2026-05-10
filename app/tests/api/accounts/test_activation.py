@@ -9,7 +9,8 @@ from app.database.models.accounts import UserModel, ActivationTokenModel
 
 @pytest.mark.asyncio
 async def test_activate_account_success(client, db_session, user_factory):
-    user = await user_factory.create_user(is_active=False)
+    unique_email = f"admin_{uuid.uuid4()}@test.com"
+    user = await user_factory.create_user(email=unique_email, is_active=False)
 
     token = ActivationTokenModel(user_id=user.id, token="test-token-123")
     db_session.add(token)

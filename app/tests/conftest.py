@@ -22,6 +22,10 @@ TestingSessionLocal = sessionmaker(
     test_engine, class_=AsyncSession, expire_on_commit=False
 )
 
+@pytest.fixture(scope="function")
+def s3_storage_fake():
+    return FakeS3Storage()
+
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_test_database():
@@ -43,13 +47,13 @@ async def db_session():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(db_session):
+async def client(db_session, s3_storage_fake):
     async def override_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_accounts_email_notificator] = lambda: StubEmailSender()
-    app.dependency_overrides[get_s3_storage_client] = lambda: FakeS3Storage()
+    app.dependency_overrides[get_s3_storage_client] = lambda: s3_storage_fake
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"

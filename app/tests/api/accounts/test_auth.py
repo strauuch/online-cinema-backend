@@ -82,3 +82,11 @@ async def test_refresh_token_success(client, db_session, user_factory, jwt_manag
 
     assert response.status_code == 200
     assert "access_token" in response.json()
+
+@pytest.mark.asyncio
+async def test_logout_invalid_token(authenticated_client):
+    response = await authenticated_client.post(
+        "/api/v1/accounts/logout/",
+        json={"refresh_token": "invalid-token"}
+    )
+    assert response.status_code == 401

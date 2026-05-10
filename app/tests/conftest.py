@@ -34,6 +34,7 @@ async def setup_test_database():
     if os.path.exists("test_accounts.db"):
         os.remove("test_accounts.db")
 
+
 @pytest_asyncio.fixture(scope="function")
 async def db_session():
     async with TestingSessionLocal() as session:
@@ -85,4 +86,13 @@ async def authenticated_client(client, user_factory, jwt_manager):
 
     client.headers["Authorization"] = f"Bearer {access_token}"
 
+    return client
+
+@pytest_asyncio.fixture(scope="function")
+async def admin_client(client, user_factory, jwt_manager):
+    unique_email = f"admin_{uuid.uuid4()}@test.com"
+    admin = await user_factory.create_admin_user(email=unique_email)
+
+    access_token = jwt_manager.create_access_token({"user_id": admin.id})
+    client.headers["Authorization"] = f"Bearer {access_token}"
     return client

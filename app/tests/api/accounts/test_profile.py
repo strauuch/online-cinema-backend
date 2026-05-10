@@ -1,13 +1,14 @@
 import pytest
+
 from io import BytesIO
 from PIL import Image
 from sqlalchemy import select
+
 from app.database.models.accounts import UserProfileModel
 
 
 @pytest.mark.asyncio
 async def test_update_own_profile(authenticated_client, db_session):
-    # authenticated_client уже имеет заголовок с токеном
     img = Image.new("RGB", (100, 100), color="blue")
     img_bytes = BytesIO()
     img.save(img_bytes, format="JPEG")
@@ -22,7 +23,9 @@ async def test_update_own_profile(authenticated_client, db_session):
         "avatar": ("avatar.jpg", img_bytes, "image/jpeg"),
     }
 
-    response = await authenticated_client.patch("/api/v1/accounts/me/profile/", files=files)
+    response = await authenticated_client.patch(
+        "/api/v1/accounts/me/profile/", files=files
+    )
     assert response.status_code == 200
 
     data = response.json()

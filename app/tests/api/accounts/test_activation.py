@@ -1,5 +1,9 @@
+import datetime
+import uuid
 import pytest
+
 from sqlalchemy import select
+
 from app.database.models.accounts import UserModel, ActivationTokenModel
 
 
@@ -7,14 +11,15 @@ from app.database.models.accounts import UserModel, ActivationTokenModel
 async def test_activate_account_success(client, db_session, user_factory):
     user = await user_factory.create_user(is_active=False)
 
+    token = ActivationTokenModel(user_id=user.id, token="test-token-123")
+    db_session.add(token)
+    await db_session.commit()
+
     stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
     token_record = await db_session.scalar(stmt)
     assert token_record is not None
 
-    payload = {
-        "email": user.email,
-        "token": token_record.token
-    }
+    payload = {"email": user.email, "token": "test-token-123"}
 
     response = await client.post("/api/v1/accounts/activate/", json=payload)
     assert response.status_code == 200
@@ -29,14 +34,18 @@ async def test_activate_account_success(client, db_session, user_factory):
 
 @pytest.mark.asyncio
 async def test_activate_with_expired_token(client, db_session, user_factory):
-    user = await user_factory.create_user(is_active=False)
-    stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
-    token = await db_session.scalar(stmt)
-
-    token.expires_at = token.expires_at.replace(year=2020)
+    unique_email = f"user_{uuid.uuid4()}@test.com"
+    user = await user_factory.create_user(email=unique_email, is_active=False)
+    token = ActivationTokenModel(
+        user_id=user.id,
+        token="expired-token-123",
+        expires_at=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(days=1),
+    )
+    db_session.add(token)
     await db_session.commit()
 
-    payload = {"email": user.email, "token": token.token}
+    payload = {"email": user.email, "token": "expired-token-123"}
     response = await client.post("/api/v1/accounts/activate/", json=payload)
 
     assert response.status_code == 400
@@ -45,11 +54,14 @@ async def test_activate_with_expired_token(client, db_session, user_factory):
 
 @pytest.mark.asyncio
 async def test_activate_already_active_user(client, db_session, user_factory):
-    user = await user_factory.create_active_user()
-    stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
-    token = await db_session.scalar(stmt)
+    unique_email = f"user_{uuid.uuid4()}@test.com"
+    user = await user_factory.create_active_user(email=unique_email)
 
-    payload = {"email": user.email, "token": token.token}
+    token = ActivationTokenModel(user_id=user.id, token="some-token")
+    db_session.add(token)
+    await db_session.commit()
+
+    payload = {"email": user.email, "token": "some-token"}
     response = await client.post("/api/v1/accounts/activate/", json=payload)
 
     assert response.status_code == 400
@@ -69,7 +81,8 @@ async def test_resend_activation_token(client, db_session, user_factory):
 
 @pytest.mark.asyncio
 async def test_resend_for_active_user_fails(client, db_session, user_factory):
-    user = await user_factory.create_active_user()
+    unique_email = f"user_{uuid.uuid4()}@test.com"
+    user = await user_factory.create_active_user(email=unique_email)
 
     payload = {"email": user.email}
     response = await client.post("/api/v1/accounts/activate/resend/", json=payload)

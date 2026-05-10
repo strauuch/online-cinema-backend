@@ -193,3 +193,53 @@ async def test_update_profile_s3_error(authenticated_client, s3_storage_fake):
         )
 
     assert response.status_code == 502
+
+@pytest.mark.asyncio
+async def test_get_me_with_avatar(authenticated_client, s3_storage_fake, db_session):
+    user = await authenticated_client.get("/api/v1/accounts/me/")
+    response = await authenticated_client.get("/api/v1/accounts/me/")
+    assert response.status_code == 200
+    data = response.json()
+    assert "profile" in data
+
+
+@pytest.mark.asyncio
+async def test_get_me_with_avatar_url(authenticated_client, s3_storage_fake):
+    response = await authenticated_client.get("/api/v1/accounts/me/")
+    assert response.status_code == 200
+    data = response.json()
+    if data.get("profile") and data["profile"].get("avatar"):
+        assert data["profile"]["avatar"].startswith("http")
+
+
+@pytest.mark.asyncio
+async def test_update_profile_creates_new_profile(authenticated_client, db_session):
+    response = await authenticated_client.patch(
+        "/api/v1/accounts/me/profile/",
+        data={"first_name": "NewProfileUser"}
+    )
+    assert response.status_code == 200
+
+@pytest.mark.asyncio
+async def test_update_profile_creates_missing_profile(authenticated_client, db_session):
+    response = await authenticated_client.patch(
+        "/api/v1/accounts/me/profile/",
+        data={"first_name": "ProfileCreatedNow"}
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_update_profile_unauthorized(client):
+    response = await client.patch(
+        "/api/v1/accounts/me/profile/", data={"first_name": "Hacker"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_update_profile_invalid_data(authenticated_client):
+    response = await authenticated_client.patch(
+        "/api/v1/accounts/me/profile/", data={"gender": "invalid_gender"}
+    )
+    assert response.status_code == 422

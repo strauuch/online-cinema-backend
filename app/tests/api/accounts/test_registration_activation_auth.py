@@ -203,7 +203,8 @@ async def test_activate_expired_token_deletes_it(client, db_session, user_factor
 
 @pytest.mark.asyncio
 async def test_resend_activation_token_deletes_old_one(client, db_session, user_factory):
-    user = await user_factory.create_user(is_active=False)
+    unique_email = f"user_{uuid.uuid4()}@test.com"
+    user = await user_factory.create_user(email=unique_email, is_active=False)
 
     old_token = ActivationTokenModel(user_id=user.id)
     db_session.add(old_token)

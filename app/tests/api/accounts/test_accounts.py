@@ -7,7 +7,6 @@ from PIL import Image
 from unittest.mock import AsyncMock, patch
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models.accounts import (
     UserModel,
@@ -20,7 +19,7 @@ from app.database.models.accounts import (
 )
 from app.exceptions.storage import S3FileUploadError
 from app.database.models.carts import CartModel
-from app.routes.accounts import router as accounts_router, register_user
+
 
 
 async def ensure_user_group(db_session):
@@ -516,13 +515,41 @@ async def test_refresh_user_not_found(client, db_session, user_factory, jwt_mana
 @pytest.mark.asyncio
 async def test_refresh_token_not_in_db(client, user_factory, jwt_manager):
     user = await user_factory.create_active_user()
+
     refresh_token = jwt_manager.create_refresh_token({"user_id": user.id})
+
+    response = await client.post(
+        "/api/v1/accounts/refresh/",
+        json={"refresh_token": refresh_token}
+    )
+
+    assert response.status_code == 401
+    assert "Refresh token not found" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_success_after_logout(client, user_factory, jwt_manager, db_session):
+    unique_email = f"{uuid.uuid4()}@test.com"
+    user = await user_factory.create_active_user(email=unique_email)
+
+    login_resp = await client.post(
+        "/api/v1/accounts/login/",
+        data={"username": user.email, "password": "StrongTestPass123!"},
+    )
+    refresh_token = login_resp.json()["refresh_token"]
+
+    await client.post(
+        "/api/v1/accounts/logout/",
+        json={"refresh_token": refresh_token},
+        headers={"Authorization": f"Bearer {login_resp.json()['access_token']}"},
+    )
 
     response = await client.post(
         "/api/v1/accounts/refresh/", json={"refresh_token": refresh_token}
     )
-    assert response.status_code == 401
 
+    assert response.status_code == 401
+    assert "Refresh token not found" in response.json()["detail"]
 
 @pytest.mark.asyncio
 async def test_update_own_profile(authenticated_client, db_session):
@@ -690,6 +717,69 @@ async def test_update_profile_avatar_replacement(authenticated_client):
         "/api/v1/accounts/me/profile/", files={"avatar": ("new.jpg", b2, "image/jpeg")}
     )
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_update_profile_deletes_old_avatar(
+    authenticated_client, s3_storage_fake, db_session
+):
+    img1 = Image.new("RGB", (100, 100), "blue")
+    b1 = BytesIO()
+    img1.save(b1, "JPEG")
+    b1.seek(0)
+
+    await authenticated_client.patch(
+        "/api/v1/accounts/me/profile/",
+        files={"avatar": ("old_avatar.jpg", b1, "image/jpeg")},
+    )
+
+    user_profile = await db_session.scalar(
+        select(UserProfileModel).join(UserModel).where(UserModel.id == authenticated_client.headers.get("user_id"))
+    )
+
+    img2 = Image.new("RGB", (100, 100), "green")
+    b2 = BytesIO()
+    img2.save(b2, "JPEG")
+    b2.seek(0)
+
+    with patch.object(s3_storage_fake, "delete_file", AsyncMock()) as mock_delete:
+        response = await authenticated_client.patch(
+            "/api/v1/accounts/me/profile/",
+            files={"avatar": ("new_avatar.jpg", b2, "image/jpeg")},
+        )
+
+    assert response.status_code == 200
+    mock_delete.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_update_profile_creates_missing_profile(
+    client, db_session, user_factory, jwt_manager
+):
+    user = await user_factory.create_active_user()
+
+    await db_session.execute(
+        delete(UserProfileModel).where(UserProfileModel.user_id == user.id)
+    )
+    await db_session.commit()
+
+    access_token = jwt_manager.create_access_token({"user_id": user.id})
+    client.headers["Authorization"] = f"Bearer {access_token}"
+
+    response = await client.patch(
+        "/api/v1/accounts/me/profile/",
+        data={"first_name": "Test", "info": "Profile created automatically"}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["first_name"] == "test"
+    assert data["info"] == "Profile created automatically"
+
+    profile = await db_session.scalar(
+        select(UserProfileModel).where(UserProfileModel.user_id == user.id)
+    )
+    assert profile is not None
 
 
 @pytest.mark.asyncio
@@ -904,6 +994,81 @@ async def test_password_reset_expired_token(client, db_session, user_factory):
 
 
 @pytest.mark.asyncio
+async def test_password_reset_token_deleted_after_successful_use(
+    client, db_session, user_factory
+):
+
+    user = await user_factory.create_active_user()
+
+    await client.post(
+        "/api/v1/accounts/password-reset/request/",
+        json={"email": user.email}
+    )
+
+    token_record = await db_session.scalar(
+        select(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.user_id == user.id
+        )
+    )
+    assert token_record is not None
+    reset_token = token_record.token
+
+    new_password = "NewVeryStrongPass123!"
+    response = await client.post(
+        "/api/v1/accounts/reset-password/complete/",
+        json={
+            "email": user.email,
+            "token": reset_token,
+            "password": new_password,
+        },
+    )
+
+    assert response.status_code == 200
+
+    remaining = await db_session.scalar(
+        select(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.user_id == user.id
+        )
+    )
+    assert remaining is None
+
+    await db_session.refresh(user)
+    assert user.verify_password(new_password)
+
+@pytest.mark.asyncio
+async def test_password_reset_expired_token_cleanup(client, db_session, user_factory):
+    user = await user_factory.create_active_user()
+
+    expired_token = PasswordResetTokenModel(
+        user_id=user.id,
+        expires_at=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1),
+    )
+    db_session.add(expired_token)
+    await db_session.commit()
+
+    response = await client.post(
+        "/api/v1/accounts/reset-password/complete/",
+        json={
+            "email": user.email,
+            "token": expired_token.token,
+            "password": "NewPass123!",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Invalid email or token" in response.json()["detail"]
+
+    remaining = await db_session.scalar(
+        select(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.user_id == user.id
+        )
+    )
+    assert remaining is None
+
+
+
+
+@pytest.mark.asyncio
 async def test_admin_list_users(admin_client):
     response = await admin_client.get("/api/v1/accounts/admin/users/")
     assert response.status_code == 200
@@ -954,6 +1119,34 @@ async def test_admin_list_users_pagination(admin_client, user_factory):
 
 
 @pytest.mark.asyncio
+async def test_admin_list_users_forbidden_for_regular_user(authenticated_client):
+    response = await authenticated_client.get("/api/v1/accounts/admin/users/")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_list_users_combined_filters(admin_client, user_factory):
+    await user_factory.create_active_user(email="john.doe@example.com")
+    await user_factory.create_active_user(email="jane.doe@example.com")
+    inactive = await user_factory.create_user(
+        is_active=False,
+        email="inactive.user@example.com"
+    )
+
+    response = await admin_client.get(
+        "/api/v1/accounts/admin/users/?"
+        "email_query=doe&"
+        "is_active=true"
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert all("doe" in u["email"].lower() for u in data["items"])
+    assert all(u["is_active"] is True for u in data["items"])
+
+
+@pytest.mark.asyncio
 async def test_admin_get_user_detail(admin_client, user_factory):
     user = await user_factory.create_active_user()
 
@@ -992,7 +1185,6 @@ async def test_admin_update_user(admin_client, user_factory, db_session):
     assert data["is_active"] is False
     assert data["group_id"] == 1
 
-    # Проверяем в БД
     await db_session.refresh(user)
     assert user.is_active is False
     assert user.group_id == 1

@@ -225,9 +225,14 @@ async def activate_account(
             detail="User account is already active.",
         )
 
-    user.is_active = True
-    await db.delete(token_record)
-    await db.flush()
+    try:
+        user.is_active = True
+        await db.delete(token_record)
+        await db.flush()
+    except SQLAlchemyError as e:
+        await db.rollback()
+        logger.error("Failed to activate user")
+        raise HTTPException(status_code=500, detail="An error occurred during account activation.")
 
     logger.info(
         f"User {user.id} successfully activated their account and profile created. Enqueued welcome email for {activation_data.email}"

@@ -910,43 +910,116 @@ async def test_admin_list_users(admin_client):
     data = response.json()
     assert "items" in data
     assert "total" in data
+    assert "page" in data
+    assert "size" in data
+    assert isinstance(data["items"], list)
+
+
+@pytest.mark.asyncio
+async def test_admin_list_users_with_filters(admin_client, user_factory):
+    await user_factory.create_active_user(email="active1@example.com")
+    await user_factory.create_active_user(email="active2@example.com")
+    inactive = await user_factory.create_user(is_active=False, email="inactive@example.com")
+
+    response = await admin_client.get("/api/v1/accounts/admin/users/?is_active=true")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 2
+    assert all(u["is_active"] is True for u in data["items"])
+
+    response = await admin_client.get("/api/v1/accounts/admin/users/?email_query=inactive")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["email"] == inactive.email
+
+
+@pytest.mark.asyncio
+async def test_admin_list_users_pagination(admin_client, user_factory):
+    for i in range(15):
+        await user_factory.create_active_user(email=f"pageuser{i}@example.com")
+
+    response = await admin_client.get("/api/v1/accounts/admin/users/?page=1&size=5")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 5
+    assert data["page"] == 1
+    assert data["total"] >= 15
+
+    response = await admin_client.get("/api/v1/accounts/admin/users/?page=2&size=5")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 5
+    assert data["page"] == 2
 
 
 @pytest.mark.asyncio
 async def test_admin_get_user_detail(admin_client, user_factory):
     user = await user_factory.create_active_user()
+
     response = await admin_client.get(f"/api/v1/accounts/admin/users/{user.id}/")
     assert response.status_code == 200
     data = response.json()
+
     assert data["id"] == user.id
     assert data["email"] == user.email
+    assert "group_name" in data
+    assert "profile" in data
 
 
 @pytest.mark.asyncio
-async def test_admin_update_user(admin_client, user_factory):
+async def test_admin_get_user_detail_not_found(admin_client):
+    response = await admin_client.get("/api/v1/accounts/admin/users/999999/")
+    assert response.status_code == 404
+    assert "User not found" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_admin_update_user(admin_client, user_factory, db_session):
+    user = await user_factory.create_active_user()
+
+    payload = {
+        "is_active": False,
+        "group_id": 1
+    }
+
+    response = await admin_client.patch(
+        f"/api/v1/accounts/admin/users/{user.id}/", json=payload
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["is_active"] is False
+    assert data["group_id"] == 1
+
+    # Проверяем в БД
+    await db_session.refresh(user)
+    assert user.is_active is False
+    assert user.group_id == 1
+
+
+@pytest.mark.asyncio
+async def test_admin_update_user_partial(admin_client, user_factory, db_session):
     user = await user_factory.create_active_user()
 
     response = await admin_client.patch(
         f"/api/v1/accounts/admin/users/{user.id}/",
-        json={"is_active": False, "group_id": 1},
+        json={"is_active": False}
     )
     assert response.status_code == 200
     data = response.json()
     assert data["is_active"] is False
 
+    await db_session.refresh(user)
+    assert user.is_active is False
+
 
 @pytest.mark.asyncio
-async def test_admin_update_user_is_active(admin_client, user_factory):
-    user = await user_factory.create_active_user()
+async def test_admin_update_user_not_found(admin_client):
     response = await admin_client.patch(
-        f"/api/v1/accounts/admin/users/{user.id}/", json={"is_active": False}
+        "/api/v1/accounts/admin/users/999999/",
+        json={"is_active": False}
     )
-    assert response.status_code == 200
-    assert response.json()["is_active"] is False
+    assert response.status_code == 404
+    assert "User not found" in response.json()["detail"]
 
-
-@pytest.mark.asyncio
-async def test_admin_list_users_with_filters(admin_client, user_factory):
-    await user_factory.create_active_user()
-    response = await admin_client.get("/api/v1/accounts/admin/users/?is_active=true")
-    assert response.status_code == 200

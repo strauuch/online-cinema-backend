@@ -4,6 +4,7 @@ import pytest
 import pytest_asyncio
 
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
@@ -14,6 +15,8 @@ from app.core.dependencies import get_settings
 from app.tests.doubles.stubs.emails import StubEmailSender
 from app.tests.doubles.fakes.storage import FakeS3Storage
 from app.tests.factories.user import UserFactory
+from app.database.models.accounts import UserGroupModel
+from app.database.models.enums import UserGroupEnum
 
 TEST_DB_URL = "sqlite+aiosqlite:///./test_accounts.db"
 
@@ -21,6 +24,7 @@ test_engine = create_async_engine(TEST_DB_URL, echo=False, future=True)
 TestingSessionLocal = sessionmaker(
     test_engine, class_=AsyncSession, expire_on_commit=False
 )
+
 
 @pytest.fixture(scope="function")
 def s3_storage_fake():
@@ -91,6 +95,7 @@ async def authenticated_client(client, user_factory, jwt_manager):
     client.headers["Authorization"] = f"Bearer {access_token}"
 
     return client
+
 
 @pytest_asyncio.fixture(scope="function")
 async def admin_client(client, user_factory, jwt_manager):

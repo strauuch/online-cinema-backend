@@ -260,17 +260,6 @@ async def test_create_star_forbidden_regular_user(authenticated_client):
 
 
 @pytest.mark.asyncio
-async def test_create_star_internal_error(admin_client, monkeypatch, db_session):
-    async def fake_commit(*args, **kwargs):
-        raise Exception("DB crash")
-
-    monkeypatch.setattr(db_session, "commit", fake_commit)
-
-    response = await admin_client.post(
-        "/api/v1/admin/movies/stars/", json={"name": "CrashTest"}
-    )
-
-    assert response.status_code == 500@pytest.mark.asyncio
 async def test_create_star_success(admin_client, db_session):
     payload = {"name": "Brad Pitt"}
 
@@ -318,5 +307,97 @@ async def test_create_star_unauthorized(client):
 async def test_create_star_forbidden_regular_user(authenticated_client):
     response = await authenticated_client.post(
         "/api/v1/admin/movies/stars/", json={"name": "Forbidden"}
+    )
+    assert response.status_code == 403
+
+# ====================== PATCH /stars/{star_id}/ ======================
+
+@pytest.mark.asyncio
+async def test_update_star_success(admin_client, movie_factory, db_session):
+    await movie_factory.create_movie(stars=["Old Star Name"])
+    star = await db_session.scalar(select(StarModel).where(StarModel.name == "Old Star Name"))
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/stars/{star.id}/",
+        json={"name": "New Star Name"}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "New Star Name"
+
+    await db_session.refresh(star)
+    assert star.name == "New Star Name"
+
+
+@pytest.mark.asyncio
+async def test_update_star_not_found(admin_client):
+    response = await admin_client.patch(
+        "/api/v1/admin/movies/stars/99999/",
+        json={"name": "NotExist"}
+    )
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_update_star_duplicate_name(admin_client, movie_factory, db_session):
+    await movie_factory.create_movie(stars=["Existing Star"])
+    await movie_factory.create_movie(stars=["Another Star"])
+
+    star_to_update = await db_session.scalar(
+        select(StarModel).where(StarModel.name == "Another Star")
+    )
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/stars/{star_to_update.id}/",
+        json={"name": "Existing Star"}
+    )
+
+    assert response.status_code == 400
+    assert "already" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_update_star_validation_error(admin_client, movie_factory, db_session):
+    await movie_factory.create_movie(stars=["Validation Test"])
+
+    star = await db_session.scalar(
+        select(StarModel).where(StarModel.name == "Validation Test")
+    )
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/stars/{star.id}/",
+        json={"name": ""}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_star_unauthorized(client, movie_factory, db_session):
+    await movie_factory.create_movie(stars=["Unauthorized Update"])
+
+    star = await db_session.scalar(
+        select(StarModel).where(StarModel.name == "Unauthorized Update")
+    )
+
+    response = await client.patch(
+        f"/api/v1/admin/movies/stars/{star.id}/",
+        json={"name": "Should Fail"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_update_star_forbidden_regular_user(authenticated_client, movie_factory, db_session):
+    await movie_factory.create_movie(stars=["Forbidden Update"])
+
+    star = await db_session.scalar(
+        select(StarModel).where(StarModel.name == "Forbidden Update")
+    )
+
+    response = await authenticated_client.patch(
+        f"/api/v1/admin/movies/stars/{star.id}/",
+        json={"name": "Should Fail"}
     )
     assert response.status_code == 403

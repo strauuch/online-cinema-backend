@@ -64,7 +64,7 @@ class MovieFactory:
             description=kwargs.pop("description", "A test movie description."),
             price=kwargs.pop("price", Decimal("12.99")),
             certification_id=cert.id,
-            **kwargs
+            **{k: v for k, v in kwargs.items() if k not in ["genres", "stars", "directors"]}
         )
 
         self.db.add(movie)
@@ -82,23 +82,37 @@ class MovieFactory:
 
         if stars := kwargs.get("stars"):
             for s in stars:
-                s_obj = s if isinstance(s, StarModel) else await self.db.scalar(
-                    select(StarModel).where(StarModel.name == s)
-                )
-                if s_obj:
-                    await self.db.execute(
-                        insert(movie_stars).values(movie_id=movie.id, star_id=s_obj.id)
+                if isinstance(s, str):
+                    star_obj = await self.db.scalar(
+                        select(StarModel).where(StarModel.name == s)
                     )
+                    if not star_obj:
+                        star_obj = StarModel(name=s)
+                        self.db.add(star_obj)
+                        await self.db.flush()
+                else:
+                    star_obj = s
+
+                await self.db.execute(
+                    insert(movie_stars).values(movie_id=movie.id, star_id=star_obj.id)
+                )
 
         if directors := kwargs.get("directors"):
             for d in directors:
-                d_obj = d if isinstance(d, DirectorModel) else await self.db.scalar(
-                    select(DirectorModel).where(DirectorModel.name == d)
-                )
-                if d_obj:
-                    await self.db.execute(
-                        insert(movie_directors).values(movie_id=movie.id, director_id=d_obj.id)
+                if isinstance(d, str):
+                    dir_obj = await self.db.scalar(
+                        select(DirectorModel).where(DirectorModel.name == d)
                     )
+                    if not dir_obj:
+                        dir_obj = DirectorModel(name=d)
+                        self.db.add(dir_obj)
+                        await self.db.flush()
+                else:
+                    dir_obj = d
+
+                await self.db.execute(
+                    insert(movie_directors).values(movie_id=movie.id, director_id=dir_obj.id)
+                )
 
         await self.db.commit()
         await self.db.refresh(movie, ["genres", "stars", "directors", "certification"])

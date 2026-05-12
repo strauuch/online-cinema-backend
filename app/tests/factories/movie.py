@@ -15,14 +15,12 @@ class MovieFactory:
         self.db = db_session
 
     async def _ensure_basic_entities(self):
-        # Certification
         if not await self.db.scalar(select(CertificationModel)):
             self.db.add(CertificationModel(name="PG-13"))
             self.db.add(CertificationModel(name="R"))
             self.db.add(CertificationModel(name="G"))
             await self.db.commit()
 
-        # Genres
         existing_genres = await self.db.scalars(select(GenreModel.name))
         existing_names = {g for g in existing_genres}
         for name in ["Action", "Drama", "Comedy", "Sci-Fi", "Thriller"]:
@@ -30,7 +28,6 @@ class MovieFactory:
                 self.db.add(GenreModel(name=name))
         await self.db.commit()
 
-        # Stars & Directors
         if not await self.db.scalar(select(StarModel)):
             for name in ["Leonardo DiCaprio", "Scarlett Johansson", "Tom Hardy"]:
                 self.db.add(StarModel(name=name))
@@ -73,7 +70,6 @@ class MovieFactory:
         self.db.add(movie)
         await self.db.flush()
 
-        # Many-to-many связи
         if genres := kwargs.get("genres"):
             for g in genres:
                 g_obj = g if isinstance(g, GenreModel) else await self.db.scalar(

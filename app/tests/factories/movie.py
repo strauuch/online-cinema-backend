@@ -1,0 +1,109 @@
+import uuid
+
+from datetime import datetime
+from decimal import Decimal
+from sqlalchemy import select, insert
+
+from app.database.models.movies import (
+    GenreModel, StarModel, DirectorModel, CertificationModel,
+    MovieModel, movie_genres, movie_stars, movie_directors
+)
+
+
+class MovieFactory:
+    def __init__(self, db_session):
+        self.db = db_session
+
+    async def _ensure_basic_entities(self):
+        # Certification
+        if not await self.db.scalar(select(CertificationModel)):
+            self.db.add(CertificationModel(name="PG-13"))
+            self.db.add(CertificationModel(name="R"))
+            self.db.add(CertificationModel(name="G"))
+            await self.db.commit()
+
+        # Genres
+        existing_genres = await self.db.scalars(select(GenreModel.name))
+        existing_names = {g for g in existing_genres}
+        for name in ["Action", "Drama", "Comedy", "Sci-Fi", "Thriller"]:
+            if name not in existing_names:
+                self.db.add(GenreModel(name=name))
+        await self.db.commit()
+
+        # Stars & Directors
+        if not await self.db.scalar(select(StarModel)):
+            for name in ["Leonardo DiCaprio", "Scarlett Johansson", "Tom Hardy"]:
+                self.db.add(StarModel(name=name))
+            await self.db.commit()
+
+        if not await self.db.scalar(select(DirectorModel)):
+            for name in ["Christopher Nolan", "Denis Villeneuve", "Quentin Tarantino"]:
+                self.db.add(DirectorModel(name=name))
+            await self.db.commit()
+
+    async def create_genre(self, name: str = None) -> GenreModel:
+        await self._ensure_basic_entities()
+        if name is None:
+            name = f"Genre_{uuid.uuid4().hex[:8]}"
+
+        genre = GenreModel(name=name)
+        self.db.add(genre)
+        await self.db.commit()
+        await self.db.refresh(genre)
+        return genre
+
+    async def create_movie(self, **kwargs) -> MovieModel:
+        await self._ensure_basic_entities()
+
+        name = kwargs.pop("name", f"Test Movie {uuid.uuid4().hex[:8]}")
+        cert = await self.db.scalar(select(CertificationModel))
+
+        movie = MovieModel(
+            name=name,
+            year=kwargs.pop("year", 2025),
+            time=kwargs.pop("time", 130),
+            imdb=kwargs.pop("imdb", 7.5),
+            votes=kwargs.pop("votes", 120000),
+            description=kwargs.pop("description", "A test movie description."),
+            price=kwargs.pop("price", Decimal("12.99")),
+            certification_id=cert.id,
+            **kwargs
+        )
+
+        self.db.add(movie)
+        await self.db.flush()
+
+        # Many-to-many связи
+        if genres := kwargs.get("genres"):
+            for g in genres:
+                g_obj = g if isinstance(g, GenreModel) else await self.db.scalar(
+                    select(GenreModel).where(GenreModel.name == g)
+                )
+                if g_obj:
+                    await self.db.execute(
+                        insert(movie_genres).values(movie_id=movie.id, genre_id=g_obj.id)
+                    )
+
+        if stars := kwargs.get("stars"):
+            for s in stars:
+                s_obj = s if isinstance(s, StarModel) else await self.db.scalar(
+                    select(StarModel).where(StarModel.name == s)
+                )
+                if s_obj:
+                    await self.db.execute(
+                        insert(movie_stars).values(movie_id=movie.id, star_id=s_obj.id)
+                    )
+
+        if directors := kwargs.get("directors"):
+            for d in directors:
+                d_obj = d if isinstance(d, DirectorModel) else await self.db.scalar(
+                    select(DirectorModel).where(DirectorModel.name == d)
+                )
+                if d_obj:
+                    await self.db.execute(
+                        insert(movie_directors).values(movie_id=movie.id, director_id=d_obj.id)
+                    )
+
+        await self.db.commit()
+        await self.db.refresh(movie, ["genres", "stars", "directors", "certification"])
+        return movie

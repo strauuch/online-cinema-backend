@@ -17,6 +17,7 @@ from app.tests.doubles.fakes.storage import FakeS3Storage
 from app.tests.factories.user import UserFactory
 from app.database.models.accounts import UserGroupModel
 from app.database.models.enums import UserGroupEnum
+from app.tests.factories.movie import MovieFactory
 
 TEST_DB_URL = "sqlite+aiosqlite:///./test_accounts.db"
 
@@ -105,3 +106,8 @@ async def admin_client(client, user_factory, jwt_manager):
     access_token = jwt_manager.create_access_token({"user_id": admin.id})
     client.headers["Authorization"] = f"Bearer {access_token}"
     return client
+
+
+@pytest_asyncio.fixture
+async def movie_factory(db_session):
+    return MovieFactory(db_session)

@@ -1,7 +1,8 @@
 import pytest
 from sqlalchemy import select
 
-from app.database.models.movies import GenreModel
+from app.database.models.movies import GenreModel, StarModel
+
 
 # ====================== POST /genres/ ======================
 
@@ -204,3 +205,118 @@ async def test_get_stars_forbidden_regular_user(authenticated_client):
     response = await authenticated_client.get("/api/v1/admin/movies/stars/")
     assert response.status_code == 403
 
+# ====================== POST /stars/ ======================
+
+@pytest.mark.asyncio
+async def test_create_star_success(admin_client, db_session):
+    payload = {"name": "Brad Pitt"}
+
+    response = await admin_client.post("/api/v1/admin/movies/stars/", json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "Brad Pitt"
+
+    star = await db_session.scalar(
+        select(StarModel).where(StarModel.name == "Brad Pitt")
+    )
+    assert star is not None
+
+
+@pytest.mark.asyncio
+async def test_create_star_duplicate(admin_client, movie_factory):
+    await movie_factory.create_movie(stars=["Tom Hanks"])
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/stars/", json={"name": "Tom Hanks"}
+    )
+
+    assert response.status_code == 400
+    assert "already exists" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_star_validation_error(admin_client):
+    response = await admin_client.post(
+        "/api/v1/admin/movies/stars/", json={"name": ""}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_star_unauthorized(client):
+    response = await client.post(
+        "/api/v1/admin/movies/stars/", json={"name": "Unauthorized"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_star_forbidden_regular_user(authenticated_client):
+    response = await authenticated_client.post(
+        "/api/v1/admin/movies/stars/", json={"name": "Forbidden"}
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_star_internal_error(admin_client, monkeypatch, db_session):
+    async def fake_commit(*args, **kwargs):
+        raise Exception("DB crash")
+
+    monkeypatch.setattr(db_session, "commit", fake_commit)
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/stars/", json={"name": "CrashTest"}
+    )
+
+    assert response.status_code == 500@pytest.mark.asyncio
+async def test_create_star_success(admin_client, db_session):
+    payload = {"name": "Brad Pitt"}
+
+    response = await admin_client.post("/api/v1/admin/movies/stars/", json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "Brad Pitt"
+
+    star = await db_session.scalar(
+        select(StarModel).where(StarModel.name == "Brad Pitt")
+    )
+    assert star is not None
+
+
+@pytest.mark.asyncio
+async def test_create_star_duplicate(admin_client, movie_factory):
+    await movie_factory.create_movie(stars=["Tom Hanks"])
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/stars/", json={"name": "Tom Hanks"}
+    )
+
+    assert response.status_code == 400
+    assert "already exists" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_star_validation_error(admin_client):
+    response = await admin_client.post(
+        "/api/v1/admin/movies/stars/", json={"name": ""}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_star_unauthorized(client):
+    response = await client.post(
+        "/api/v1/admin/movies/stars/", json={"name": "Unauthorized"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_star_forbidden_regular_user(authenticated_client):
+    response = await authenticated_client.post(
+        "/api/v1/admin/movies/stars/", json={"name": "Forbidden"}
+    )
+    assert response.status_code == 403

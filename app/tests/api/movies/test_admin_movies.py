@@ -454,3 +454,43 @@ async def test_delete_star_forbidden_regular_user(authenticated_client, movie_fa
         f"/api/v1/admin/movies/stars/{star.id}/"
     )
     assert response.status_code == 403
+
+# ====================== GET /directors/ ======================
+
+@pytest.mark.asyncio
+async def test_get_directors_list_success(admin_client, movie_factory):
+    await movie_factory.create_movie(directors=["Christopher Nolan", "Denis Villeneuve"])
+
+    response = await admin_client.get("/api/v1/admin/movies/directors/")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+    assert "total" in data
+    assert len(data["items"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_get_directors_pagination(admin_client, movie_factory):
+    for i in range(12):
+        await movie_factory.create_movie(directors=[f"Director Pagination {i}"])
+
+    response = await admin_client.get("/api/v1/admin/movies/directors/?page=1&size=4")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 4
+    assert data["page"] == 1
+    assert data["size"] == 4
+
+
+@pytest.mark.asyncio
+async def test_get_directors_unauthorized(client):
+    response = await client.get("/api/v1/admin/movies/directors/")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_directors_forbidden_regular_user(authenticated_client):
+    response = await authenticated_client.get("/api/v1/admin/movies/directors/")
+    assert response.status_code == 403

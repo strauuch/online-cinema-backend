@@ -1,0 +1,206 @@
+import pytest
+from sqlalchemy import select
+
+from app.database.models.movies import GenreModel
+
+# ====================== POST /genres/ ======================
+
+@pytest.mark.asyncio
+async def test_create_genre_success(admin_client, db_session):
+    payload = {"name": "Horror"}
+
+    response = await admin_client.post("/api/v1/admin/movies/genres/", json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "Horror"
+
+    genre = await db_session.scalar(
+        select(GenreModel).where(GenreModel.name == "Horror")
+    )
+    assert genre is not None
+
+
+@pytest.mark.asyncio
+async def test_create_genre_validation_error(admin_client):
+    response = await admin_client.post(
+        "/api/v1/admin/movies/genres/", json={"name": ""}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_genre_unauthorized(client):
+    response = await client.post(
+        "/api/v1/admin/movies/genres/", json={"name": "Test"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_genre_forbidden_regular_user(authenticated_client):
+    response = await authenticated_client.post(
+        "/api/v1/admin/movies/genres/", json={"name": "Forbidden"}
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_genre_internal_server_error(admin_client, monkeypatch, db_session):
+    async def fake_commit(*args, **kwargs):
+        raise Exception("Simulated unexpected error")
+
+    monkeypatch.setattr(db_session, "commit", fake_commit)
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/genres/", json={"name": "CrashTest"}
+    )
+
+    assert response.status_code == 500
+    assert "internal error" in response.json()["detail"].lower()
+
+# ====================== PATCH /genres/{genre_id}/ ======================
+
+@pytest.mark.asyncio
+async def test_update_genre_success(admin_client, movie_factory, db_session):
+    genre = await movie_factory.create_genre("OldGenre")
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/genres/{genre.id}/",
+        json={"name": "NewGenre"}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "NewGenre"
+
+    await db_session.refresh(genre)
+    assert genre.name == "NewGenre"
+
+
+@pytest.mark.asyncio
+async def test_update_genre_not_found(admin_client):
+    response = await admin_client.patch(
+        "/api/v1/admin/movies/genres/99999/",
+        json={"name": "NotExist"}
+    )
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_update_genre_validation_error(admin_client, movie_factory):
+    genre = await movie_factory.create_genre("TestGenre")
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/genres/{genre.id}/",
+        json={"name": ""}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_genre_unauthorized(client, movie_factory):
+    genre = await movie_factory.create_genre("Unauthorized")
+
+    response = await client.patch(
+        f"/api/v1/admin/movies/genres/{genre.id}/",
+        json={"name": "ShouldFail"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_update_genre_forbidden_regular_user(authenticated_client, movie_factory):
+    genre = await movie_factory.create_genre("Forbidden")
+
+    response = await authenticated_client.patch(
+        f"/api/v1/admin/movies/genres/{genre.id}/",
+        json={"name": "ShouldFail"}
+    )
+    assert response.status_code == 403
+
+# ====================== DELETE /genres/{genre_id}/ ======================
+
+@pytest.mark.asyncio
+async def test_delete_genre_success(admin_client, movie_factory, db_session):
+    genre = await movie_factory.create_genre("ToBeDeleted")
+
+    response = await admin_client.delete(
+        f"/api/v1/admin/movies/genres/{genre.id}/"
+    )
+
+    assert response.status_code == 204
+
+    deleted = await db_session.scalar(
+        select(GenreModel).where(GenreModel.id == genre.id)
+    )
+    assert deleted is None
+
+
+@pytest.mark.asyncio
+async def test_delete_genre_not_found(admin_client):
+    response = await admin_client.delete("/api/v1/admin/movies/genres/99999/")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_genre_unauthorized(client, movie_factory):
+    genre = await movie_factory.create_genre("UnauthorizedDelete")
+
+    response = await client.delete(
+        f"/api/v1/admin/movies/genres/{genre.id}/"
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_delete_genre_forbidden_regular_user(authenticated_client, movie_factory):
+    genre = await movie_factory.create_genre("ForbiddenDelete")
+
+    response = await authenticated_client.delete(
+        f"/api/v1/admin/movies/genres/{genre.id}/"
+    )
+    assert response.status_code == 403
+
+# ====================== GET /stars/ ======================
+
+@pytest.mark.asyncio
+async def test_get_stars_list_success(admin_client, movie_factory):
+    await movie_factory.create_movie(stars=["Leonardo DiCaprio", "Tom Hardy"])
+
+    response = await admin_client.get("/api/v1/admin/movies/stars/")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+    assert "total" in data
+    assert len(data["items"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_get_stars_pagination(admin_client, movie_factory):
+    for i in range(15):
+        await movie_factory.create_movie(stars=[f"Star {i}"])
+
+    response = await admin_client.get("/api/v1/admin/movies/stars/?page=1&size=5")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 5
+    assert data["page"] == 1
+    assert data["size"] == 5
+
+
+@pytest.mark.asyncio
+async def test_get_stars_unauthorized(client):
+    response = await client.get("/api/v1/admin/movies/stars/")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_stars_forbidden_regular_user(authenticated_client):
+    response = await authenticated_client.get("/api/v1/admin/movies/stars/")
+    assert response.status_code == 403
+

@@ -401,3 +401,56 @@ async def test_update_star_forbidden_regular_user(authenticated_client, movie_fa
         json={"name": "Should Fail"}
     )
     assert response.status_code == 403
+
+# ====================== DELETE /stars/{star_id}/ ======================
+
+@pytest.mark.asyncio
+async def test_delete_star_success(admin_client, movie_factory, db_session):
+    await movie_factory.create_movie(stars=["Star To Delete"])
+    star = await db_session.scalar(
+        select(StarModel).where(StarModel.name == "Star To Delete")
+    )
+
+    response = await admin_client.delete(
+        f"/api/v1/admin/movies/stars/{star.id}/"
+    )
+
+    assert response.status_code == 204
+
+    deleted = await db_session.scalar(
+        select(StarModel).where(StarModel.id == star.id)
+    )
+    assert deleted is None
+
+
+@pytest.mark.asyncio
+async def test_delete_star_not_found(admin_client):
+    response = await admin_client.delete("/api/v1/admin/movies/stars/99999/")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_star_unauthorized(client, movie_factory, db_session):
+    await movie_factory.create_movie(stars=["Unauthorized Delete"])
+
+    star = await db_session.scalar(
+        select(StarModel).where(StarModel.name == "Unauthorized Delete")
+    )
+
+    response = await client.delete(f"/api/v1/admin/movies/stars/{star.id}/")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_delete_star_forbidden_regular_user(authenticated_client, movie_factory, db_session):
+    await movie_factory.create_movie(stars=["Forbidden Delete"])
+
+    star = await db_session.scalar(
+        select(StarModel).where(StarModel.name == "Forbidden Delete")
+    )
+
+    response = await authenticated_client.delete(
+        f"/api/v1/admin/movies/stars/{star.id}/"
+    )
+    assert response.status_code == 403

@@ -477,7 +477,7 @@ async def test_get_directors_forbidden_regular_user(authenticated_client):
 
 @pytest.mark.asyncio
 async def test_create_director_success(admin_client, db_session):
-    unique_name = f"Director_{uuid.uuid4()}"
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
     payload = {"name": unique_name}
 
     response = await admin_client.post("/api/v1/admin/movies/directors/", json=payload)
@@ -494,7 +494,7 @@ async def test_create_director_success(admin_client, db_session):
 
 @pytest.mark.asyncio
 async def test_create_director_duplicate(admin_client, movie_factory):
-    unique_name = f"Director_{uuid.uuid4()}"
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
     await movie_factory.create_movie(directors=[unique_name])
 
     response = await admin_client.post(

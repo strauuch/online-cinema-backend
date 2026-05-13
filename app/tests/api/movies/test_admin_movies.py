@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select
 
-from app.database.models.movies import GenreModel, StarModel
+from app.database.models.movies import GenreModel, StarModel, DirectorModel
 
 
 # ====================== POST /genres/ ======================
@@ -494,3 +494,71 @@ async def test_get_directors_unauthorized(client):
 async def test_get_directors_forbidden_regular_user(authenticated_client):
     response = await authenticated_client.get("/api/v1/admin/movies/directors/")
     assert response.status_code == 403
+
+# ====================== POST /directors/ ======================
+
+@pytest.mark.asyncio
+async def test_create_director_success(admin_client, db_session):
+    payload = {"name": "Martin Scorsese"}
+
+    response = await admin_client.post("/api/v1/admin/movies/directors/", json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "Martin Scorsese"
+
+    director = await db_session.scalar(
+        select(DirectorModel).where(DirectorModel.name == "Martin Scorsese")
+    )
+    assert director is not None
+
+
+@pytest.mark.asyncio
+async def test_create_director_duplicate(admin_client, movie_factory):
+    await movie_factory.create_movie(directors=["Quentin Tarantino"])
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/directors/", json={"name": "Quentin Tarantino"}
+    )
+
+    assert response.status_code == 400
+    assert "already exists" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_director_validation_error(admin_client):
+    response = await admin_client.post(
+        "/api/v1/admin/movies/directors/", json={"name": ""}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_director_unauthorized(client):
+    response = await client.post(
+        "/api/v1/admin/movies/directors/", json={"name": "Unauthorized Director"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_director_forbidden_regular_user(authenticated_client):
+    response = await authenticated_client.post(
+        "/api/v1/admin/movies/directors/", json={"name": "Forbidden Director"}
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_director_internal_error(admin_client, monkeypatch, db_session):
+    async def fake_commit(*args, **kwargs):
+        raise Exception("Simulated unexpected error")
+
+    monkeypatch.setattr(db_session, "commit", fake_commit)
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/directors/", json={"name": "CrashTest Director"}
+    )
+
+    assert response.status_code == 500
+    assert "internal error" in response.json()["detail"].lower()

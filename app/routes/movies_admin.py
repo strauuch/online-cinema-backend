@@ -914,7 +914,7 @@ async def create_movie(
 
 
 @router.get(
-    "/admin/deleted/",
+    "/deleted/",
     response_model=Page[MovieDeletedShortResponseSchema],
     status_code=status.HTTP_200_OK,
     summary="List soft-deleted movies [Moderator | Admin]",

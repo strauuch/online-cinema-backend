@@ -656,3 +656,59 @@ async def test_update_director_forbidden_regular_user(authenticated_client, movi
         json={"name": "Should Fail"}
     )
     assert response.status_code == 403
+
+# ====================== DELETE /directors/{director_id}/ ======================
+
+@pytest.mark.asyncio
+async def test_delete_director_success(admin_client, movie_factory, db_session):
+    await movie_factory.create_movie(directors=["Director To Delete"])
+    director = await db_session.scalar(
+        select(DirectorModel).where(DirectorModel.name == "Director To Delete")
+    )
+
+    response = await admin_client.delete(
+        f"/api/v1/admin/movies/directors/{director.id}/"
+    )
+
+    assert response.status_code == 204
+
+    deleted = await db_session.scalar(
+        select(DirectorModel).where(DirectorModel.id == director.id)
+    )
+    assert deleted is None
+
+
+@pytest.mark.asyncio
+async def test_delete_director_not_found(admin_client):
+    response = await admin_client.delete("/api/v1/admin/movies/directors/99999/")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_director_unauthorized(client, movie_factory, db_session):
+    await movie_factory.create_movie(directors=["Unauthorized Director Delete"])
+
+    director = await db_session.scalar(
+        select(DirectorModel).where(DirectorModel.name == "Unauthorized Director Delete")
+    )
+
+    response = await client.delete(
+        f"/api/v1/admin/movies/directors/{director.id}/"
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_delete_director_forbidden_regular_user(authenticated_client, movie_factory, db_session):
+    await movie_factory.create_movie(directors=["Forbidden Director Delete"])
+
+    director = await db_session.scalar(
+        select(DirectorModel).where(DirectorModel.name == "Forbidden Director Delete")
+    )
+
+    response = await authenticated_client.delete(
+        f"/api/v1/admin/movies/directors/{director.id}/"
+    )
+    assert response.status_code == 403
+

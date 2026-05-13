@@ -562,3 +562,97 @@ async def test_create_director_internal_error(admin_client, monkeypatch, db_sess
 
     assert response.status_code == 500
     assert "internal error" in response.json()["detail"].lower()
+
+# ====================== PATCH /directors/{director_id}/ ======================
+
+@pytest.mark.asyncio
+async def test_update_director_success(admin_client, movie_factory, db_session):
+    await movie_factory.create_movie(directors=["Old Director Name"])
+    director = await db_session.scalar(
+        select(DirectorModel).where(DirectorModel.name == "Old Director Name")
+    )
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/directors/{director.id}/",
+        json={"name": "New Director Name"}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "New Director Name"
+
+    await db_session.refresh(director)
+    assert director.name == "New Director Name"
+
+
+@pytest.mark.asyncio
+async def test_update_director_not_found(admin_client):
+    response = await admin_client.patch(
+        "/api/v1/admin/movies/directors/99999/",
+        json={"name": "NotExist"}
+    )
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_update_director_duplicate_name(admin_client, movie_factory, db_session):
+    await movie_factory.create_movie(directors=["Existing Director"])
+    await movie_factory.create_movie(directors=["Another Director"])
+
+    director_to_update = await db_session.scalar(
+        select(DirectorModel).where(DirectorModel.name == "Another Director")
+    )
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/directors/{director_to_update.id}/",
+        json={"name": "Existing Director"}
+    )
+
+    assert response.status_code == 400
+    assert "already exists" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_update_director_validation_error(admin_client, movie_factory, db_session):
+    await movie_factory.create_movie(directors=["Validation Director"])
+
+    director = await db_session.scalar(
+        select(DirectorModel).where(DirectorModel.name == "Validation Director")
+    )
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/directors/{director.id}/",
+        json={"name": ""}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_director_unauthorized(client, movie_factory, db_session):
+    await movie_factory.create_movie(directors=["Unauthorized Director Update"])
+
+    director = await db_session.scalar(
+        select(DirectorModel).where(DirectorModel.name == "Unauthorized Director Update")
+    )
+
+    response = await client.patch(
+        f"/api/v1/admin/movies/directors/{director.id}/",
+        json={"name": "Should Fail"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_update_director_forbidden_regular_user(authenticated_client, movie_factory, db_session):
+    await movie_factory.create_movie(directors=["Forbidden Director Update"])
+
+    director = await db_session.scalar(
+        select(DirectorModel).where(DirectorModel.name == "Forbidden Director Update")
+    )
+
+    response = await authenticated_client.patch(
+        f"/api/v1/admin/movies/directors/{director.id}/",
+        json={"name": "Should Fail"}
+    )
+    assert response.status_code == 403

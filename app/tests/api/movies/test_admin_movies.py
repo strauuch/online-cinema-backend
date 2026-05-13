@@ -60,6 +60,19 @@ async def test_create_genre_internal_server_error(admin_client, monkeypatch, db_
     assert response.status_code == 500
     assert "internal error" in response.json()["detail"].lower()
 
+
+@pytest.mark.asyncio
+async def test_create_genre_duplicate(admin_client, db_session):
+    db_session.add(GenreModel(name="DuplicateGenre"))
+    await db_session.commit()
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/genres/",
+        json={"name": "DuplicateGenre"}
+    )
+    assert response.status_code == 400
+    assert "already exists" in response.json()["detail"].lower()
+
 # ====================== PATCH /genres/{genre_id}/ ======================
 
 @pytest.mark.asyncio
@@ -563,6 +576,18 @@ async def test_create_director_internal_error(admin_client, monkeypatch, db_sess
     assert response.status_code == 500
     assert "internal error" in response.json()["detail"].lower()
 
+@pytest.mark.asyncio
+async def test_create_director_duplicate(admin_client, db_session):
+    db_session.add(DirectorModel(name="Duplicate Director"))
+    await db_session.commit()
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/directors/",
+        json={"name": "Duplicate Director"}
+    )
+    assert response.status_code == 400
+    assert "already exists" in response.json()["detail"].lower()
+
 # ====================== PATCH /directors/{director_id}/ ======================
 
 @pytest.mark.asyncio
@@ -753,3 +778,83 @@ async def test_get_certifications_unauthorized(client):
 async def test_get_certifications_forbidden_regular_user(authenticated_client):
     response = await authenticated_client.get("/api/v1/admin/movies/certifications/")
     assert response.status_code == 403
+
+# ====================== POST /certifications/ ======================
+
+@pytest.mark.asyncio
+async def test_create_certification_success(admin_client, db_session):
+    payload = {"name": "PG-18"}
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/certifications/",
+        json=payload
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "PG-18"
+
+    cert = await db_session.scalar(
+        select(CertificationModel).where(CertificationModel.name == "PG-18")
+    )
+    assert cert is not None
+
+
+@pytest.mark.asyncio
+async def test_create_certification_duplicate(admin_client, db_session):
+    duplicate_name = "DuplicateCert12345"
+
+    existing = CertificationModel(name=duplicate_name)
+    db_session.add(existing)
+    await db_session.commit()
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/certifications/",
+        json={"name": duplicate_name}
+    )
+
+    assert response.status_code == 400
+    assert "already exists" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_certification_validation_error(admin_client):
+    response = await admin_client.post(
+        "/api/v1/admin/movies/certifications/",
+        json={"name": ""}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_certification_unauthorized(client):
+    response = await client.post(
+        "/api/v1/admin/movies/certifications/",
+        json={"name": "Unauthorized Cert"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_certification_forbidden_regular_user(authenticated_client):
+    response = await authenticated_client.post(
+        "/api/v1/admin/movies/certifications/",
+        json={"name": "Forbidden Cert"}
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_certification_internal_error(admin_client, monkeypatch, db_session):
+    async def fake_commit(*args, **kwargs):
+        raise Exception("Simulated unexpected error")
+
+    monkeypatch.setattr(db_session, "commit", fake_commit)
+
+    response = await admin_client.post(
+        "/api/v1/admin/movies/certifications/",
+        json={"name": "CrashTest Cert"}
+    )
+
+    assert response.status_code == 500
+    assert "internal database error occurred." in response.json()["detail"].lower()

@@ -1,5 +1,8 @@
+import uuid
+
 import pytest
 from sqlalchemy import select, insert
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.database.models.movies import (
     GenreModel,
@@ -1035,3 +1038,346 @@ async def test_delete_certification_forbidden_regular_user(
         f"/api/v1/admin/movies/certifications/{cert.id}/"
     )
     assert response.status_code == 403
+
+# ====================== POST / (create movie) ======================
+
+@pytest.mark.asyncio
+async def test_create_movie_success(admin_client, movie_factory, db_session):
+    genre = await movie_factory.create_genre(f"Action_{uuid.uuid4().hex[:6]}")
+    star = await db_session.scalar(select(StarModel).limit(1))
+    director = await db_session.scalar(select(DirectorModel).limit(1))
+    cert = await db_session.scalar(select(CertificationModel).limit(1))
+
+    payload = {
+        "name": f"Inception Test {uuid.uuid4().hex[:8]}",
+        "year": 2010,
+        "time": 148,
+        "imdb": 8.8,
+        "description": "A thief who steals corporate secrets through dream-sharing technology.",
+        "price": "12.99",
+        "certification_id": cert.id,
+        "genre_ids": [genre.id],
+        "star_ids": [star.id],
+        "director_ids": [director.id],
+        "votes": 2000000
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert payload["name"] in data["name"]
+    assert data["year"] == 2010
+    assert len(data["genres"]) == 1
+    assert len(data["stars"]) >= 1
+    assert len(data["directors"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_create_movie_invalid_certification(admin_client, movie_factory, db_session):
+    genre = await movie_factory.create_genre(f"Drama_{uuid.uuid4().hex[:6]}")
+    star = await db_session.scalar(select(StarModel).limit(1))
+    director = await db_session.scalar(select(DirectorModel).limit(1))
+
+    payload = {
+        "name": f"Invalid Cert Movie {uuid.uuid4().hex[:8]}",
+        "year": 2023,
+        "time": 120,
+        "imdb": 7.5,
+        "description": "Test description",
+        "price": "9.99",
+        "certification_id": 99999,
+        "genre_ids": [genre.id],
+        "star_ids": [star.id],
+        "director_ids": [director.id]
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 400
+    assert "certification" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_movie_invalid_genre_ids(admin_client, movie_factory, db_session):
+
+    cert = await db_session.scalar(select(CertificationModel).limit(1))
+    star = await db_session.scalar(select(StarModel).limit(1))
+    director = await db_session.scalar(select(DirectorModel).limit(1))
+
+    payload = {
+        "name": f"Invalid Genre Movie {uuid.uuid4().hex[:8]}",
+        "year": 2023,
+        "time": 130,
+        "imdb": 7.0,
+        "description": "Test description",
+        "price": "10.00",
+        "certification_id": cert.id,
+        "genre_ids": [99999],
+        "star_ids": [star.id],
+        "director_ids": [director.id]
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 400
+    assert "genre" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_movie_duplicate(admin_client, movie_factory, db_session):
+    unique_name = f"Duplicate Movie {uuid.uuid4().hex[:8]}"
+
+    await movie_factory.create_movie(name=unique_name, year=2025, time=120)
+
+    genre = await movie_factory.create_genre(f"Thriller_{uuid.uuid4().hex[:6]}")
+    star = await db_session.scalar(select(StarModel).limit(1))
+    director = await db_session.scalar(select(DirectorModel).limit(1))
+    cert = await db_session.scalar(select(CertificationModel).limit(1))
+
+    payload = {
+        "name": unique_name,
+        "year": 2025,
+        "time": 120,
+        "imdb": 8.0,
+        "description": "Test duplicate",
+        "price": "15.00",
+        "certification_id": cert.id,
+        "genre_ids": [genre.id],
+        "star_ids": [star.id],
+        "director_ids": [director.id],
+        "votes": 500
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 400
+    assert "already exists" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_movie_validation_error(admin_client):
+    payload = {"name": ""}  # невалидный
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_movie_unauthorized(client):
+    payload = {
+        "name": "Test Unauthorized",
+        "year": 2023,
+        "time": 120,
+        "imdb": 7.0,
+        "description": "x",
+        "price": "10",
+        "certification_id": 1,
+        "genre_ids": [1],
+        "star_ids": [1],
+        "director_ids": [1]
+    }
+    response = await client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_movie_forbidden_regular_user(authenticated_client):
+    payload = {
+        "name": "Test Forbidden",
+        "year": 2023,
+        "time": 120,
+        "imdb": 7.0,
+        "description": "x",
+        "price": "10",
+        "certification_id": 1,
+        "genre_ids": [1],
+        "star_ids": [1],
+        "director_ids": [1]
+    }
+    response = await authenticated_client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_movie_internal_error(admin_client, monkeypatch, movie_factory, db_session):
+
+    async def fake_flush(*args, **kwargs):
+        raise SQLAlchemyError("Simulated DB crash")
+
+    monkeypatch.setattr(db_session, "flush", fake_flush)
+
+    genre = await movie_factory.create_genre(f"CrashGenre_{uuid.uuid4().hex[:6]}")
+    star = await db_session.scalar(select(StarModel).limit(1))
+    director = await db_session.scalar(select(DirectorModel).limit(1))
+    cert = await db_session.scalar(select(CertificationModel).limit(1))
+
+    payload = {
+        "name": f"Crash Movie {uuid.uuid4().hex[:8]}",
+        "year": 2024,
+        "time": 120,
+        "imdb": 7.5,
+        "description": "Test crash",
+        "price": "10.00",
+        "certification_id": cert.id,
+        "genre_ids": [genre.id],
+        "star_ids": [star.id],
+        "director_ids": [director.id]
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 500
+    assert "database error" in response.json()["detail"].lower()
+
+@pytest.mark.asyncio
+async def test_create_movie_with_meta_score_and_gross(admin_client, movie_factory, db_session):
+    """Успешное создание с дополнительными полями meta_score и gross"""
+    genre = await movie_factory.create_genre(f"MetaTest_{uuid.uuid4().hex[:6]}")
+    star = await db_session.scalar(select(StarModel).limit(1))
+    director = await db_session.scalar(select(DirectorModel).limit(1))
+    cert = await db_session.scalar(select(CertificationModel).limit(1))
+
+    payload = {
+        "name": f"Meta Gross Movie {uuid.uuid4().hex[:8]}",
+        "year": 2024,
+        "time": 142,
+        "imdb": 8.2,
+        "description": "Test movie with meta and gross fields",
+        "price": "15.99",
+        "certification_id": cert.id,
+        "genre_ids": [genre.id],
+        "star_ids": [star.id],
+        "director_ids": [director.id],
+        "meta_score": 82,
+        "gross": 285000000,
+        "votes": 1250000
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["meta_score"] == 82
+    assert data["gross"] == 285000000
+    assert data["name"] == payload["name"]
+
+
+@pytest.mark.asyncio
+async def test_create_movie_invalid_star_ids(admin_client, movie_factory, db_session):
+    genre = await movie_factory.create_genre()
+    cert = await db_session.scalar(select(CertificationModel).limit(1))
+    director = await db_session.scalar(select(DirectorModel).limit(1))
+
+    payload = {
+        "name": f"Invalid Stars {uuid.uuid4().hex[:8]}",
+        "year": 2023,
+        "time": 125,
+        "imdb": 7.8,
+        "description": "Test invalid stars",
+        "price": "12.50",
+        "certification_id": cert.id,
+        "genre_ids": [genre.id],
+        "star_ids": [99999, 88888],
+        "director_ids": [director.id]
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 400
+    assert "star" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_movie_invalid_director_ids(admin_client, movie_factory, db_session):
+    """Неверные ID режиссёров"""
+    genre = await movie_factory.create_genre()
+    cert = await db_session.scalar(select(CertificationModel).limit(1))
+    star = await db_session.scalar(select(StarModel).limit(1))
+
+    payload = {
+        "name": f"Invalid Directors {uuid.uuid4().hex[:8]}",
+        "year": 2023,
+        "time": 130,
+        "imdb": 7.5,
+        "description": "Test invalid directors",
+        "price": "11.99",
+        "certification_id": cert.id,
+        "genre_ids": [genre.id],
+        "star_ids": [star.id],
+        "director_ids": [99999]
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 400
+    assert "director" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_movie_validation_errors(admin_client):
+    """Проверка валидаторов полей (year, imdb, price, time, description)"""
+    payload = {
+        "name": "Validation Movie",
+        "year": 1800,                    # слишком старый
+        "time": 350,                     # слишком длинный
+        "imdb": 10.5,                    # > 10
+        "description": "short",          # меньше 10 символов
+        "price": "-10.00",               # отрицательная цена
+        "certification_id": 1,
+        "genre_ids": [1],
+        "star_ids": [1],
+        "director_ids": [1]
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_movie_empty_genre_ids(admin_client, movie_factory, db_session):
+    """Попытка создать фильм с пустым списком жанров (должно падать по min_length)"""
+    cert = await db_session.scalar(select(CertificationModel).limit(1))
+    star = await db_session.scalar(select(StarModel).limit(1))
+    director = await db_session.scalar(select(DirectorModel).limit(1))
+
+    payload = {
+        "name": f"Empty Genres {uuid.uuid4().hex[:8]}",
+        "year": 2024,
+        "time": 110,
+        "imdb": 6.8,
+        "description": "Movie without genres",
+        "price": "9.99",
+        "certification_id": cert.id,
+        "genre_ids": [],
+        "star_ids": [star.id],
+        "director_ids": [director.id]
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+    assert response.status_code == 422  # или 400, в зависимости от валидации
+
+
+@pytest.mark.asyncio
+async def test_create_movie_internal_error_flush(admin_client, monkeypatch, movie_factory, db_session):
+    """Тест обработки внутренней ошибки БД (на этапе flush)"""
+    async def fake_flush(*args, **kwargs):
+        raise SQLAlchemyError("Simulated flush error")
+
+    monkeypatch.setattr(db_session, "flush", fake_flush)
+
+    genre = await movie_factory.create_genre()
+    star = await db_session.scalar(select(StarModel).limit(1))
+    director = await db_session.scalar(select(DirectorModel).limit(1))
+    cert = await db_session.scalar(select(CertificationModel).limit(1))
+
+    payload = {
+        "name": f"Crash Movie {uuid.uuid4().hex[:8]}",
+        "year": 2024,
+        "time": 120,
+        "imdb": 7.5,
+        "description": "This will cause internal error",
+        "price": "10.99",
+        "certification_id": cert.id,
+        "genre_ids": [genre.id],
+        "star_ids": [star.id],
+        "director_ids": [director.id]
+    }
+
+    response = await admin_client.post("/api/v1/admin/movies/", json=payload)
+
+    assert response.status_code == 500
+    assert "database error" in response.json()["detail"].lower()

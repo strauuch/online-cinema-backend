@@ -21,7 +21,6 @@ from app.exceptions.storage import S3FileUploadError
 from app.database.models.carts import CartModel
 
 
-
 async def ensure_user_group(db_session):
     group = await db_session.scalar(
         select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
@@ -519,8 +518,7 @@ async def test_refresh_token_not_in_db(client, user_factory, jwt_manager):
     refresh_token = jwt_manager.create_refresh_token({"user_id": user.id})
 
     response = await client.post(
-        "/api/v1/accounts/refresh/",
-        json={"refresh_token": refresh_token}
+        "/api/v1/accounts/refresh/", json={"refresh_token": refresh_token}
     )
 
     assert response.status_code == 401
@@ -528,7 +526,9 @@ async def test_refresh_token_not_in_db(client, user_factory, jwt_manager):
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_success_after_logout(client, user_factory, jwt_manager, db_session):
+async def test_refresh_token_success_after_logout(
+    client, user_factory, jwt_manager, db_session
+):
     unique_email = f"{uuid.uuid4()}@test.com"
     user = await user_factory.create_active_user(email=unique_email)
 
@@ -550,6 +550,7 @@ async def test_refresh_token_success_after_logout(client, user_factory, jwt_mana
 
     assert response.status_code == 401
     assert "Refresh token not found" in response.json()["detail"]
+
 
 @pytest.mark.asyncio
 async def test_update_own_profile(authenticated_client, db_session):
@@ -734,7 +735,9 @@ async def test_update_profile_deletes_old_avatar(
     )
 
     user_profile = await db_session.scalar(
-        select(UserProfileModel).join(UserModel).where(UserModel.id == authenticated_client.headers.get("user_id"))
+        select(UserProfileModel)
+        .join(UserModel)
+        .where(UserModel.id == authenticated_client.headers.get("user_id"))
     )
 
     img2 = Image.new("RGB", (100, 100), "green")
@@ -768,7 +771,7 @@ async def test_update_profile_creates_missing_profile(
 
     response = await client.patch(
         "/api/v1/accounts/me/profile/",
-        data={"first_name": "Test", "info": "Profile created automatically"}
+        data={"first_name": "Test", "info": "Profile created automatically"},
     )
 
     assert response.status_code == 200
@@ -1001,8 +1004,7 @@ async def test_password_reset_token_deleted_after_successful_use(
     user = await user_factory.create_active_user()
 
     await client.post(
-        "/api/v1/accounts/password-reset/request/",
-        json={"email": user.email}
+        "/api/v1/accounts/password-reset/request/", json={"email": user.email}
     )
 
     token_record = await db_session.scalar(
@@ -1035,13 +1037,15 @@ async def test_password_reset_token_deleted_after_successful_use(
     await db_session.refresh(user)
     assert user.verify_password(new_password)
 
+
 @pytest.mark.asyncio
 async def test_password_reset_expired_token_cleanup(client, db_session, user_factory):
     user = await user_factory.create_active_user()
 
     expired_token = PasswordResetTokenModel(
         user_id=user.id,
-        expires_at=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1),
+        expires_at=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(hours=1),
     )
     db_session.add(expired_token)
     await db_session.commit()
@@ -1066,8 +1070,6 @@ async def test_password_reset_expired_token_cleanup(client, db_session, user_fac
     assert remaining is None
 
 
-
-
 @pytest.mark.asyncio
 async def test_admin_list_users(admin_client):
     response = await admin_client.get("/api/v1/accounts/admin/users/")
@@ -1084,7 +1086,9 @@ async def test_admin_list_users(admin_client):
 async def test_admin_list_users_with_filters(admin_client, user_factory):
     await user_factory.create_active_user(email="active1@example.com")
     await user_factory.create_active_user(email="active2@example.com")
-    inactive = await user_factory.create_user(is_active=False, email="inactive@example.com")
+    inactive = await user_factory.create_user(
+        is_active=False, email="inactive@example.com"
+    )
 
     response = await admin_client.get("/api/v1/accounts/admin/users/?is_active=true")
     assert response.status_code == 200
@@ -1092,7 +1096,9 @@ async def test_admin_list_users_with_filters(admin_client, user_factory):
     assert data["total"] >= 2
     assert all(u["is_active"] is True for u in data["items"])
 
-    response = await admin_client.get("/api/v1/accounts/admin/users/?email_query=inactive")
+    response = await admin_client.get(
+        "/api/v1/accounts/admin/users/?email_query=inactive"
+    )
     assert response.status_code == 200
     data = response.json()
     assert len(data["items"]) == 1
@@ -1129,14 +1135,11 @@ async def test_admin_list_users_combined_filters(admin_client, user_factory):
     await user_factory.create_active_user(email="john.doe@example.com")
     await user_factory.create_active_user(email="jane.doe@example.com")
     inactive = await user_factory.create_user(
-        is_active=False,
-        email="inactive.user@example.com"
+        is_active=False, email="inactive.user@example.com"
     )
 
     response = await admin_client.get(
-        "/api/v1/accounts/admin/users/?"
-        "email_query=doe&"
-        "is_active=true"
+        "/api/v1/accounts/admin/users/?" "email_query=doe&" "is_active=true"
     )
 
     assert response.status_code == 200
@@ -1171,10 +1174,7 @@ async def test_admin_get_user_detail_not_found(admin_client):
 async def test_admin_update_user(admin_client, user_factory, db_session):
     user = await user_factory.create_active_user()
 
-    payload = {
-        "is_active": False,
-        "group_id": 1
-    }
+    payload = {"is_active": False, "group_id": 1}
 
     response = await admin_client.patch(
         f"/api/v1/accounts/admin/users/{user.id}/", json=payload
@@ -1195,8 +1195,7 @@ async def test_admin_update_user_partial(admin_client, user_factory, db_session)
     user = await user_factory.create_active_user()
 
     response = await admin_client.patch(
-        f"/api/v1/accounts/admin/users/{user.id}/",
-        json={"is_active": False}
+        f"/api/v1/accounts/admin/users/{user.id}/", json={"is_active": False}
     )
     assert response.status_code == 200
     data = response.json()
@@ -1209,9 +1208,7 @@ async def test_admin_update_user_partial(admin_client, user_factory, db_session)
 @pytest.mark.asyncio
 async def test_admin_update_user_not_found(admin_client):
     response = await admin_client.patch(
-        "/api/v1/accounts/admin/users/999999/",
-        json={"is_active": False}
+        "/api/v1/accounts/admin/users/999999/", json={"is_active": False}
     )
     assert response.status_code == 404
     assert "User not found" in response.json()["detail"]
-

@@ -5,8 +5,14 @@ from decimal import Decimal
 from sqlalchemy import select, insert
 
 from app.database.models.movies import (
-    GenreModel, StarModel, DirectorModel, CertificationModel,
-    MovieModel, movie_genres, movie_stars, movie_directors
+    GenreModel,
+    StarModel,
+    DirectorModel,
+    CertificationModel,
+    MovieModel,
+    movie_genres,
+    movie_stars,
+    movie_directors,
 )
 
 
@@ -64,7 +70,11 @@ class MovieFactory:
             description=kwargs.pop("description", "A test movie description."),
             price=kwargs.pop("price", Decimal("12.99")),
             certification_id=cert.id,
-            **{k: v for k, v in kwargs.items() if k not in ["genres", "stars", "directors"]}
+            **{
+                k: v
+                for k, v in kwargs.items()
+                if k not in ["genres", "stars", "directors"]
+            },
         )
 
         self.db.add(movie)
@@ -72,12 +82,18 @@ class MovieFactory:
 
         if genres := kwargs.get("genres"):
             for g in genres:
-                g_obj = g if isinstance(g, GenreModel) else await self.db.scalar(
-                    select(GenreModel).where(GenreModel.name == g)
+                g_obj = (
+                    g
+                    if isinstance(g, GenreModel)
+                    else await self.db.scalar(
+                        select(GenreModel).where(GenreModel.name == g)
+                    )
                 )
                 if g_obj:
                     await self.db.execute(
-                        insert(movie_genres).values(movie_id=movie.id, genre_id=g_obj.id)
+                        insert(movie_genres).values(
+                            movie_id=movie.id, genre_id=g_obj.id
+                        )
                     )
 
         if stars := kwargs.get("stars"):
@@ -111,7 +127,9 @@ class MovieFactory:
                     dir_obj = d
 
                 await self.db.execute(
-                    insert(movie_directors).values(movie_id=movie.id, director_id=dir_obj.id)
+                    insert(movie_directors).values(
+                        movie_id=movie.id, director_id=dir_obj.id
+                    )
                 )
 
         await self.db.commit()

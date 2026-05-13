@@ -1,10 +1,15 @@
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, insert
 
-from app.database.models.movies import GenreModel, StarModel, DirectorModel, CertificationModel
-
+from app.database.models.movies import (
+    GenreModel,
+    StarModel,
+    DirectorModel,
+    CertificationModel,
+)
 
 # ====================== POST /genres/ ======================
+
 
 @pytest.mark.asyncio
 async def test_create_genre_success(admin_client, db_session):
@@ -32,9 +37,7 @@ async def test_create_genre_validation_error(admin_client):
 
 @pytest.mark.asyncio
 async def test_create_genre_unauthorized(client):
-    response = await client.post(
-        "/api/v1/admin/movies/genres/", json={"name": "Test"}
-    )
+    response = await client.post("/api/v1/admin/movies/genres/", json={"name": "Test"})
     assert response.status_code == 401
 
 
@@ -47,7 +50,9 @@ async def test_create_genre_forbidden_regular_user(authenticated_client):
 
 
 @pytest.mark.asyncio
-async def test_create_genre_internal_server_error(admin_client, monkeypatch, db_session):
+async def test_create_genre_internal_server_error(
+    admin_client, monkeypatch, db_session
+):
     async def fake_commit(*args, **kwargs):
         raise Exception("Simulated unexpected error")
 
@@ -67,21 +72,21 @@ async def test_create_genre_duplicate(admin_client, db_session):
     await db_session.commit()
 
     response = await admin_client.post(
-        "/api/v1/admin/movies/genres/",
-        json={"name": "DuplicateGenre"}
+        "/api/v1/admin/movies/genres/", json={"name": "DuplicateGenre"}
     )
     assert response.status_code == 400
     assert "already exists" in response.json()["detail"].lower()
 
+
 # ====================== PATCH /genres/{genre_id}/ ======================
+
 
 @pytest.mark.asyncio
 async def test_update_genre_success(admin_client, movie_factory, db_session):
     genre = await movie_factory.create_genre("OldGenre")
 
     response = await admin_client.patch(
-        f"/api/v1/admin/movies/genres/{genre.id}/",
-        json={"name": "NewGenre"}
+        f"/api/v1/admin/movies/genres/{genre.id}/", json={"name": "NewGenre"}
     )
 
     assert response.status_code == 200
@@ -95,8 +100,7 @@ async def test_update_genre_success(admin_client, movie_factory, db_session):
 @pytest.mark.asyncio
 async def test_update_genre_not_found(admin_client):
     response = await admin_client.patch(
-        "/api/v1/admin/movies/genres/99999/",
-        json={"name": "NotExist"}
+        "/api/v1/admin/movies/genres/99999/", json={"name": "NotExist"}
     )
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
@@ -107,8 +111,7 @@ async def test_update_genre_validation_error(admin_client, movie_factory):
     genre = await movie_factory.create_genre("TestGenre")
 
     response = await admin_client.patch(
-        f"/api/v1/admin/movies/genres/{genre.id}/",
-        json={"name": ""}
+        f"/api/v1/admin/movies/genres/{genre.id}/", json={"name": ""}
     )
     assert response.status_code == 422
 
@@ -118,8 +121,7 @@ async def test_update_genre_unauthorized(client, movie_factory):
     genre = await movie_factory.create_genre("Unauthorized")
 
     response = await client.patch(
-        f"/api/v1/admin/movies/genres/{genre.id}/",
-        json={"name": "ShouldFail"}
+        f"/api/v1/admin/movies/genres/{genre.id}/", json={"name": "ShouldFail"}
     )
     assert response.status_code == 401
 
@@ -129,20 +131,19 @@ async def test_update_genre_forbidden_regular_user(authenticated_client, movie_f
     genre = await movie_factory.create_genre("Forbidden")
 
     response = await authenticated_client.patch(
-        f"/api/v1/admin/movies/genres/{genre.id}/",
-        json={"name": "ShouldFail"}
+        f"/api/v1/admin/movies/genres/{genre.id}/", json={"name": "ShouldFail"}
     )
     assert response.status_code == 403
 
+
 # ====================== DELETE /genres/{genre_id}/ ======================
+
 
 @pytest.mark.asyncio
 async def test_delete_genre_success(admin_client, movie_factory, db_session):
     genre = await movie_factory.create_genre("ToBeDeleted")
 
-    response = await admin_client.delete(
-        f"/api/v1/admin/movies/genres/{genre.id}/"
-    )
+    response = await admin_client.delete(f"/api/v1/admin/movies/genres/{genre.id}/")
 
     assert response.status_code == 204
 
@@ -163,9 +164,7 @@ async def test_delete_genre_not_found(admin_client):
 async def test_delete_genre_unauthorized(client, movie_factory):
     genre = await movie_factory.create_genre("UnauthorizedDelete")
 
-    response = await client.delete(
-        f"/api/v1/admin/movies/genres/{genre.id}/"
-    )
+    response = await client.delete(f"/api/v1/admin/movies/genres/{genre.id}/")
     assert response.status_code == 401
 
 
@@ -178,7 +177,9 @@ async def test_delete_genre_forbidden_regular_user(authenticated_client, movie_f
     )
     assert response.status_code == 403
 
+
 # ====================== GET /stars/ ======================
+
 
 @pytest.mark.asyncio
 async def test_get_stars_list_success(admin_client, movie_factory):
@@ -218,8 +219,10 @@ async def test_get_stars_forbidden_regular_user(authenticated_client):
     response = await authenticated_client.get("/api/v1/admin/movies/stars/")
     assert response.status_code == 403
 
+
 # ====================== POST /stars/ ======================
 
+
 @pytest.mark.asyncio
 async def test_create_star_success(admin_client, db_session):
     payload = {"name": "Brad Pitt"}
@@ -250,9 +253,7 @@ async def test_create_star_duplicate(admin_client, movie_factory):
 
 @pytest.mark.asyncio
 async def test_create_star_validation_error(admin_client):
-    response = await admin_client.post(
-        "/api/v1/admin/movies/stars/", json={"name": ""}
-    )
+    response = await admin_client.post("/api/v1/admin/movies/stars/", json={"name": ""})
     assert response.status_code == 422
 
 
@@ -302,9 +303,7 @@ async def test_create_star_duplicate(admin_client, movie_factory):
 
 @pytest.mark.asyncio
 async def test_create_star_validation_error(admin_client):
-    response = await admin_client.post(
-        "/api/v1/admin/movies/stars/", json={"name": ""}
-    )
+    response = await admin_client.post("/api/v1/admin/movies/stars/", json={"name": ""})
     assert response.status_code == 422
 
 
@@ -322,17 +321,20 @@ async def test_create_star_forbidden_regular_user(authenticated_client):
         "/api/v1/admin/movies/stars/", json={"name": "Forbidden"}
     )
     assert response.status_code == 403
+
 
 # ====================== PATCH /stars/{star_id}/ ======================
+
 
 @pytest.mark.asyncio
 async def test_update_star_success(admin_client, movie_factory, db_session):
     await movie_factory.create_movie(stars=["Old Star Name"])
-    star = await db_session.scalar(select(StarModel).where(StarModel.name == "Old Star Name"))
+    star = await db_session.scalar(
+        select(StarModel).where(StarModel.name == "Old Star Name")
+    )
 
     response = await admin_client.patch(
-        f"/api/v1/admin/movies/stars/{star.id}/",
-        json={"name": "New Star Name"}
+        f"/api/v1/admin/movies/stars/{star.id}/", json={"name": "New Star Name"}
     )
 
     assert response.status_code == 200
@@ -346,8 +348,7 @@ async def test_update_star_success(admin_client, movie_factory, db_session):
 @pytest.mark.asyncio
 async def test_update_star_not_found(admin_client):
     response = await admin_client.patch(
-        "/api/v1/admin/movies/stars/99999/",
-        json={"name": "NotExist"}
+        "/api/v1/admin/movies/stars/99999/", json={"name": "NotExist"}
     )
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
@@ -364,7 +365,7 @@ async def test_update_star_duplicate_name(admin_client, movie_factory, db_sessio
 
     response = await admin_client.patch(
         f"/api/v1/admin/movies/stars/{star_to_update.id}/",
-        json={"name": "Existing Star"}
+        json={"name": "Existing Star"},
     )
 
     assert response.status_code == 400
@@ -380,8 +381,7 @@ async def test_update_star_validation_error(admin_client, movie_factory, db_sess
     )
 
     response = await admin_client.patch(
-        f"/api/v1/admin/movies/stars/{star.id}/",
-        json={"name": ""}
+        f"/api/v1/admin/movies/stars/{star.id}/", json={"name": ""}
     )
     assert response.status_code == 422
 
@@ -395,14 +395,15 @@ async def test_update_star_unauthorized(client, movie_factory, db_session):
     )
 
     response = await client.patch(
-        f"/api/v1/admin/movies/stars/{star.id}/",
-        json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/stars/{star.id}/", json={"name": "Should Fail"}
     )
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_update_star_forbidden_regular_user(authenticated_client, movie_factory, db_session):
+async def test_update_star_forbidden_regular_user(
+    authenticated_client, movie_factory, db_session
+):
     await movie_factory.create_movie(stars=["Forbidden Update"])
 
     star = await db_session.scalar(
@@ -410,12 +411,13 @@ async def test_update_star_forbidden_regular_user(authenticated_client, movie_fa
     )
 
     response = await authenticated_client.patch(
-        f"/api/v1/admin/movies/stars/{star.id}/",
-        json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/stars/{star.id}/", json={"name": "Should Fail"}
     )
     assert response.status_code == 403
 
+
 # ====================== DELETE /stars/{star_id}/ ======================
+
 
 @pytest.mark.asyncio
 async def test_delete_star_success(admin_client, movie_factory, db_session):
@@ -424,15 +426,11 @@ async def test_delete_star_success(admin_client, movie_factory, db_session):
         select(StarModel).where(StarModel.name == "Star To Delete")
     )
 
-    response = await admin_client.delete(
-        f"/api/v1/admin/movies/stars/{star.id}/"
-    )
+    response = await admin_client.delete(f"/api/v1/admin/movies/stars/{star.id}/")
 
     assert response.status_code == 204
 
-    deleted = await db_session.scalar(
-        select(StarModel).where(StarModel.id == star.id)
-    )
+    deleted = await db_session.scalar(select(StarModel).where(StarModel.id == star.id))
     assert deleted is None
 
 
@@ -456,7 +454,9 @@ async def test_delete_star_unauthorized(client, movie_factory, db_session):
 
 
 @pytest.mark.asyncio
-async def test_delete_star_forbidden_regular_user(authenticated_client, movie_factory, db_session):
+async def test_delete_star_forbidden_regular_user(
+    authenticated_client, movie_factory, db_session
+):
     await movie_factory.create_movie(stars=["Forbidden Delete"])
 
     star = await db_session.scalar(
@@ -468,11 +468,15 @@ async def test_delete_star_forbidden_regular_user(authenticated_client, movie_fa
     )
     assert response.status_code == 403
 
+
 # ====================== GET /directors/ ======================
+
 
 @pytest.mark.asyncio
 async def test_get_directors_list_success(admin_client, movie_factory):
-    await movie_factory.create_movie(directors=["Christopher Nolan", "Denis Villeneuve"])
+    await movie_factory.create_movie(
+        directors=["Christopher Nolan", "Denis Villeneuve"]
+    )
 
     response = await admin_client.get("/api/v1/admin/movies/directors/")
 
@@ -508,7 +512,9 @@ async def test_get_directors_forbidden_regular_user(authenticated_client):
     response = await authenticated_client.get("/api/v1/admin/movies/directors/")
     assert response.status_code == 403
 
+
 # ====================== POST /directors/ ======================
+
 
 @pytest.mark.asyncio
 async def test_create_director_success(admin_client, db_session):
@@ -576,19 +582,21 @@ async def test_create_director_internal_error(admin_client, monkeypatch, db_sess
     assert response.status_code == 500
     assert "internal error" in response.json()["detail"].lower()
 
+
 @pytest.mark.asyncio
 async def test_create_director_duplicate(admin_client, db_session):
     db_session.add(DirectorModel(name="Duplicate Director"))
     await db_session.commit()
 
     response = await admin_client.post(
-        "/api/v1/admin/movies/directors/",
-        json={"name": "Duplicate Director"}
+        "/api/v1/admin/movies/directors/", json={"name": "Duplicate Director"}
     )
     assert response.status_code == 400
     assert "already exists" in response.json()["detail"].lower()
 
+
 # ====================== PATCH /directors/{director_id}/ ======================
+
 
 @pytest.mark.asyncio
 async def test_update_director_success(admin_client, movie_factory, db_session):
@@ -599,7 +607,7 @@ async def test_update_director_success(admin_client, movie_factory, db_session):
 
     response = await admin_client.patch(
         f"/api/v1/admin/movies/directors/{director.id}/",
-        json={"name": "New Director Name"}
+        json={"name": "New Director Name"},
     )
 
     assert response.status_code == 200
@@ -613,8 +621,7 @@ async def test_update_director_success(admin_client, movie_factory, db_session):
 @pytest.mark.asyncio
 async def test_update_director_not_found(admin_client):
     response = await admin_client.patch(
-        "/api/v1/admin/movies/directors/99999/",
-        json={"name": "NotExist"}
+        "/api/v1/admin/movies/directors/99999/", json={"name": "NotExist"}
     )
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
@@ -631,7 +638,7 @@ async def test_update_director_duplicate_name(admin_client, movie_factory, db_se
 
     response = await admin_client.patch(
         f"/api/v1/admin/movies/directors/{director_to_update.id}/",
-        json={"name": "Existing Director"}
+        json={"name": "Existing Director"},
     )
 
     assert response.status_code == 400
@@ -639,7 +646,9 @@ async def test_update_director_duplicate_name(admin_client, movie_factory, db_se
 
 
 @pytest.mark.asyncio
-async def test_update_director_validation_error(admin_client, movie_factory, db_session):
+async def test_update_director_validation_error(
+    admin_client, movie_factory, db_session
+):
     await movie_factory.create_movie(directors=["Validation Director"])
 
     director = await db_session.scalar(
@@ -647,8 +656,7 @@ async def test_update_director_validation_error(admin_client, movie_factory, db_
     )
 
     response = await admin_client.patch(
-        f"/api/v1/admin/movies/directors/{director.id}/",
-        json={"name": ""}
+        f"/api/v1/admin/movies/directors/{director.id}/", json={"name": ""}
     )
     assert response.status_code == 422
 
@@ -658,18 +666,21 @@ async def test_update_director_unauthorized(client, movie_factory, db_session):
     await movie_factory.create_movie(directors=["Unauthorized Director Update"])
 
     director = await db_session.scalar(
-        select(DirectorModel).where(DirectorModel.name == "Unauthorized Director Update")
+        select(DirectorModel).where(
+            DirectorModel.name == "Unauthorized Director Update"
+        )
     )
 
     response = await client.patch(
-        f"/api/v1/admin/movies/directors/{director.id}/",
-        json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/directors/{director.id}/", json={"name": "Should Fail"}
     )
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_update_director_forbidden_regular_user(authenticated_client, movie_factory, db_session):
+async def test_update_director_forbidden_regular_user(
+    authenticated_client, movie_factory, db_session
+):
     await movie_factory.create_movie(directors=["Forbidden Director Update"])
 
     director = await db_session.scalar(
@@ -677,12 +688,13 @@ async def test_update_director_forbidden_regular_user(authenticated_client, movi
     )
 
     response = await authenticated_client.patch(
-        f"/api/v1/admin/movies/directors/{director.id}/",
-        json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/directors/{director.id}/", json={"name": "Should Fail"}
     )
     assert response.status_code == 403
 
+
 # ====================== DELETE /directors/{director_id}/ ======================
+
 
 @pytest.mark.asyncio
 async def test_delete_director_success(admin_client, movie_factory, db_session):
@@ -715,17 +727,19 @@ async def test_delete_director_unauthorized(client, movie_factory, db_session):
     await movie_factory.create_movie(directors=["Unauthorized Director Delete"])
 
     director = await db_session.scalar(
-        select(DirectorModel).where(DirectorModel.name == "Unauthorized Director Delete")
+        select(DirectorModel).where(
+            DirectorModel.name == "Unauthorized Director Delete"
+        )
     )
 
-    response = await client.delete(
-        f"/api/v1/admin/movies/directors/{director.id}/"
-    )
+    response = await client.delete(f"/api/v1/admin/movies/directors/{director.id}/")
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_delete_director_forbidden_regular_user(authenticated_client, movie_factory, db_session):
+async def test_delete_director_forbidden_regular_user(
+    authenticated_client, movie_factory, db_session
+):
     await movie_factory.create_movie(directors=["Forbidden Director Delete"])
 
     director = await db_session.scalar(
@@ -737,7 +751,9 @@ async def test_delete_director_forbidden_regular_user(authenticated_client, movi
     )
     assert response.status_code == 403
 
+
 # ====================== GET /certifications/ ======================
+
 
 @pytest.mark.asyncio
 async def test_get_certifications_list_success(admin_client, movie_factory):
@@ -759,7 +775,9 @@ async def test_get_certifications_pagination(admin_client, movie_factory, db_ses
         db_session.add(cert)
     await db_session.commit()
 
-    response = await admin_client.get("/api/v1/admin/movies/certifications/?page=1&size=5")
+    response = await admin_client.get(
+        "/api/v1/admin/movies/certifications/?page=1&size=5"
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -779,15 +797,16 @@ async def test_get_certifications_forbidden_regular_user(authenticated_client):
     response = await authenticated_client.get("/api/v1/admin/movies/certifications/")
     assert response.status_code == 403
 
+
 # ====================== POST /certifications/ ======================
+
 
 @pytest.mark.asyncio
 async def test_create_certification_success(admin_client, db_session):
     payload = {"name": "PG-18"}
 
     response = await admin_client.post(
-        "/api/v1/admin/movies/certifications/",
-        json=payload
+        "/api/v1/admin/movies/certifications/", json=payload
     )
 
     assert response.status_code == 201
@@ -809,8 +828,7 @@ async def test_create_certification_duplicate(admin_client, db_session):
     await db_session.commit()
 
     response = await admin_client.post(
-        "/api/v1/admin/movies/certifications/",
-        json={"name": duplicate_name}
+        "/api/v1/admin/movies/certifications/", json={"name": duplicate_name}
     )
 
     assert response.status_code == 400
@@ -820,8 +838,7 @@ async def test_create_certification_duplicate(admin_client, db_session):
 @pytest.mark.asyncio
 async def test_create_certification_validation_error(admin_client):
     response = await admin_client.post(
-        "/api/v1/admin/movies/certifications/",
-        json={"name": ""}
+        "/api/v1/admin/movies/certifications/", json={"name": ""}
     )
     assert response.status_code == 422
 
@@ -829,8 +846,7 @@ async def test_create_certification_validation_error(admin_client):
 @pytest.mark.asyncio
 async def test_create_certification_unauthorized(client):
     response = await client.post(
-        "/api/v1/admin/movies/certifications/",
-        json={"name": "Unauthorized Cert"}
+        "/api/v1/admin/movies/certifications/", json={"name": "Unauthorized Cert"}
     )
     assert response.status_code == 401
 
@@ -838,28 +854,30 @@ async def test_create_certification_unauthorized(client):
 @pytest.mark.asyncio
 async def test_create_certification_forbidden_regular_user(authenticated_client):
     response = await authenticated_client.post(
-        "/api/v1/admin/movies/certifications/",
-        json={"name": "Forbidden Cert"}
+        "/api/v1/admin/movies/certifications/", json={"name": "Forbidden Cert"}
     )
     assert response.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_create_certification_internal_error(admin_client, monkeypatch, db_session):
+async def test_create_certification_internal_error(
+    admin_client, monkeypatch, db_session
+):
     async def fake_commit(*args, **kwargs):
         raise Exception("Simulated unexpected error")
 
     monkeypatch.setattr(db_session, "commit", fake_commit)
 
     response = await admin_client.post(
-        "/api/v1/admin/movies/certifications/",
-        json={"name": "CrashTest Cert"}
+        "/api/v1/admin/movies/certifications/", json={"name": "CrashTest Cert"}
     )
 
     assert response.status_code == 500
     assert "internal database error occurred." in response.json()["detail"].lower()
 
+
 # ====================== PATCH /certifications/{cert_id}/ ======================
+
 
 @pytest.mark.asyncio
 async def test_update_certification_success(admin_client, db_session):
@@ -868,8 +886,7 @@ async def test_update_certification_success(admin_client, db_session):
     await db_session.commit()
 
     response = await admin_client.patch(
-        f"/api/v1/admin/movies/certifications/{cert.id}/",
-        json={"name": "New Rating"}
+        f"/api/v1/admin/movies/certifications/{cert.id}/", json={"name": "New Rating"}
     )
 
     assert response.status_code == 200
@@ -883,8 +900,7 @@ async def test_update_certification_success(admin_client, db_session):
 @pytest.mark.asyncio
 async def test_update_certification_not_found(admin_client):
     response = await admin_client.patch(
-        "/api/v1/admin/movies/certifications/99999/",
-        json={"name": "NotExist"}
+        "/api/v1/admin/movies/certifications/99999/", json={"name": "NotExist"}
     )
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
@@ -899,7 +915,7 @@ async def test_update_certification_duplicate_name(admin_client, db_session):
 
     response = await admin_client.patch(
         f"/api/v1/admin/movies/certifications/{cert2.id}/",
-        json={"name": "Existing Cert"}
+        json={"name": "Existing Cert"},
     )
 
     assert response.status_code == 400
@@ -913,8 +929,7 @@ async def test_update_certification_validation_error(admin_client, db_session):
     await db_session.commit()
 
     response = await admin_client.patch(
-        f"/api/v1/admin/movies/certifications/{cert.id}/",
-        json={"name": ""}
+        f"/api/v1/admin/movies/certifications/{cert.id}/", json={"name": ""}
     )
     assert response.status_code == 422
 
@@ -926,20 +941,97 @@ async def test_update_certification_unauthorized(client, db_session):
     await db_session.commit()
 
     response = await client.patch(
-        f"/api/v1/admin/movies/certifications/{cert.id}/",
-        json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/certifications/{cert.id}/", json={"name": "Should Fail"}
     )
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_update_certification_forbidden_regular_user(authenticated_client, db_session):
+async def test_update_certification_forbidden_regular_user(
+    authenticated_client, db_session
+):
     cert = CertificationModel(name="Forbidden Update")
     db_session.add(cert)
     await db_session.commit()
 
     response = await authenticated_client.patch(
-        f"/api/v1/admin/movies/certifications/{cert.id}/",
-        json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/certifications/{cert.id}/", json={"name": "Should Fail"}
+    )
+    assert response.status_code == 403
+
+
+# ====================== DELETE /certifications/{cert_id}/ ======================
+
+
+@pytest.mark.asyncio
+async def test_delete_certification_success(admin_client, db_session):
+    cert = CertificationModel(name="ToBeDeletedCert")
+    db_session.add(cert)
+    await db_session.commit()
+
+    response = await admin_client.delete(
+        f"/api/v1/admin/movies/certifications/{cert.id}/"
+    )
+
+    assert response.status_code == 204
+
+    deleted = await db_session.scalar(
+        select(CertificationModel).where(CertificationModel.id == cert.id)
+    )
+    assert deleted is None
+
+
+@pytest.mark.asyncio
+async def test_delete_certification_not_found(admin_client):
+    response = await admin_client.delete("/api/v1/admin/movies/certifications/99999/")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_certification_with_movies(admin_client, movie_factory, db_session):
+    cert = CertificationModel(name="UsedCert")
+    db_session.add(cert)
+    await db_session.commit()
+    await db_session.refresh(cert)
+
+    movie = await movie_factory.create_movie()
+
+    movie.certification_id = cert.id
+    await db_session.commit()
+
+    response = await admin_client.delete(
+        f"/api/v1/admin/movies/certifications/{cert.id}/"
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"].lower()
+    assert any(phrase in detail for phrase in [
+        "assigned to movies",
+        "cannot delete",
+        "linked to existing movies"
+    ])
+
+
+@pytest.mark.asyncio
+async def test_delete_certification_unauthorized(client, db_session):
+    cert = CertificationModel(name="Unauthorized Delete Cert")
+    db_session.add(cert)
+    await db_session.commit()
+
+    response = await client.delete(f"/api/v1/admin/movies/certifications/{cert.id}/")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_delete_certification_forbidden_regular_user(
+    authenticated_client, db_session
+):
+    cert = CertificationModel(name="Forbidden Delete Cert")
+    db_session.add(cert)
+    await db_session.commit()
+
+    response = await authenticated_client.delete(
+        f"/api/v1/admin/movies/certifications/{cert.id}/"
     )
     assert response.status_code == 403

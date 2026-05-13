@@ -468,6 +468,16 @@ async def create_director(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This director already exists in the database.",
         )
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            f"Unexpected error during director creation by user {current_user_id}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal error occurred.",
+        )
     return new_director
 
 

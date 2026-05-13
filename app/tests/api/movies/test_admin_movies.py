@@ -1652,3 +1652,90 @@ async def test_update_movie_forbidden_regular_user(authenticated_client, movie_f
         f"/api/v1/admin/movies/{movie.uuid}/", json=payload
     )
     assert response.status_code == 403
+
+# ====================== DELETE /{movie_uuid}/ ======================
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_success(admin_client, movie_factory, db_session):
+    movie = await movie_factory.create_movie(name="Movie To Delete")
+
+    response = await admin_client.delete(f"/api/v1/admin/movies/{movie.uuid}/")
+
+    assert response.status_code == 204
+
+    await db_session.refresh(movie)
+    assert movie.is_deleted is True
+    assert movie.deleted_at is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_not_found(admin_client):
+    fake_uuid = str(uuid.uuid4())
+
+    response = await admin_client.delete(f"/api/v1/admin/movies/{fake_uuid}/")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_with_paid_orders(admin_client, movie_factory, db_session):
+    from app.database.models.orders import OrderModel, OrderItemModel
+    from app.database.models.enums import OrderStatusEnum
+    from decimal import Decimal
+
+    movie = await movie_factory.create_movie(name="Cannot Delete Movie")
+
+    order = OrderModel(
+        user_id=1,
+        status=OrderStatusEnum.PAID,
+        total_amount=Decimal("19.99")
+    )
+    db_session.add(order)
+    await db_session.flush()
+
+    order_item = OrderItemModel(
+        order_id=order.id,
+        movie_id=movie.id,
+        price_at_order=Decimal("19.99")
+    )
+    db_session.add(order_item)
+    await db_session.commit()
+
+    response = await admin_client.delete(f"/api/v1/admin/movies/{movie.uuid}/")
+
+    assert response.status_code == 400
+    detail = response.json()["detail"].lower()
+    assert any(phrase in detail for phrase in ["cannot delete", "purchase", "paid"])
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_unauthorized(client, movie_factory, db_session):
+    movie = await movie_factory.create_movie()
+
+    response = await client.delete(f"/api/v1/admin/movies/{movie.uuid}/")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_forbidden_regular_user(authenticated_client, movie_factory, db_session):
+    movie = await movie_factory.create_movie()
+
+    response = await authenticated_client.delete(f"/api/v1/admin/movies/{movie.uuid}/")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_internal_error(admin_client, monkeypatch, movie_factory, db_session):
+    movie = await movie_factory.create_movie()
+
+    async def fake_commit(*args, **kwargs):
+        raise SQLAlchemyError("Simulated DB error")
+
+    monkeypatch.setattr(db_session, "commit", fake_commit)
+
+    response = await admin_client.delete(f"/api/v1/admin/movies/{movie.uuid}/")
+
+    assert response.status_code == 500
+    assert "database" in response.json()["detail"].lower() or "failed" in response.json()["detail"].lower()

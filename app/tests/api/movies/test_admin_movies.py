@@ -858,3 +858,88 @@ async def test_create_certification_internal_error(admin_client, monkeypatch, db
 
     assert response.status_code == 500
     assert "internal database error occurred." in response.json()["detail"].lower()
+
+# ====================== PATCH /certifications/{cert_id}/ ======================
+
+@pytest.mark.asyncio
+async def test_update_certification_success(admin_client, db_session):
+    cert = CertificationModel(name="Old Rating")
+    db_session.add(cert)
+    await db_session.commit()
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/certifications/{cert.id}/",
+        json={"name": "New Rating"}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "New Rating"
+
+    await db_session.refresh(cert)
+    assert cert.name == "New Rating"
+
+
+@pytest.mark.asyncio
+async def test_update_certification_not_found(admin_client):
+    response = await admin_client.patch(
+        "/api/v1/admin/movies/certifications/99999/",
+        json={"name": "NotExist"}
+    )
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_update_certification_duplicate_name(admin_client, db_session):
+    cert1 = CertificationModel(name="Existing Cert")
+    cert2 = CertificationModel(name="ToBeUpdated")
+    db_session.add_all([cert1, cert2])
+    await db_session.commit()
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/certifications/{cert2.id}/",
+        json={"name": "Existing Cert"}
+    )
+
+    assert response.status_code == 400
+    assert "already taken" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_update_certification_validation_error(admin_client, db_session):
+    cert = CertificationModel(name="Validation Test")
+    db_session.add(cert)
+    await db_session.commit()
+
+    response = await admin_client.patch(
+        f"/api/v1/admin/movies/certifications/{cert.id}/",
+        json={"name": ""}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_certification_unauthorized(client, db_session):
+    cert = CertificationModel(name="Unauthorized Update")
+    db_session.add(cert)
+    await db_session.commit()
+
+    response = await client.patch(
+        f"/api/v1/admin/movies/certifications/{cert.id}/",
+        json={"name": "Should Fail"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_update_certification_forbidden_regular_user(authenticated_client, db_session):
+    cert = CertificationModel(name="Forbidden Update")
+    db_session.add(cert)
+    await db_session.commit()
+
+    response = await authenticated_client.patch(
+        f"/api/v1/admin/movies/certifications/{cert.id}/",
+        json={"name": "Should Fail"}
+    )
+    assert response.status_code == 403

@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select
 
-from app.database.models.movies import GenreModel, StarModel, DirectorModel
+from app.database.models.movies import GenreModel, StarModel, DirectorModel, CertificationModel
 
 
 # ====================== POST /genres/ ======================
@@ -712,3 +712,44 @@ async def test_delete_director_forbidden_regular_user(authenticated_client, movi
     )
     assert response.status_code == 403
 
+# ====================== GET /certifications/ ======================
+
+@pytest.mark.asyncio
+async def test_get_certifications_list_success(admin_client, movie_factory):
+    await movie_factory.create_movie()
+
+    response = await admin_client.get("/api/v1/admin/movies/certifications/")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+    assert "total" in data
+    assert len(data["items"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_get_certifications_pagination(admin_client, movie_factory, db_session):
+    for i in range(10):
+        cert = CertificationModel(name=f"Certification Test {i}")
+        db_session.add(cert)
+    await db_session.commit()
+
+    response = await admin_client.get("/api/v1/admin/movies/certifications/?page=1&size=5")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 5
+    assert data["page"] == 1
+    assert data["size"] == 5
+
+
+@pytest.mark.asyncio
+async def test_get_certifications_unauthorized(client):
+    response = await client.get("/api/v1/admin/movies/certifications/")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_certifications_forbidden_regular_user(authenticated_client):
+    response = await authenticated_client.get("/api/v1/admin/movies/certifications/")
+    assert response.status_code == 403

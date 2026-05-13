@@ -857,6 +857,24 @@ async def create_movie(
             detail="One or more genre IDs are invalid.",
         )
 
+    if len(stars) != len(movie_data.star_ids):
+        logger.warning(
+            f"Creation failed: User {current_user_id} provided invalid star IDs"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more star IDs are invalid.",
+        )
+
+    if len(directors) != len(movie_data.director_ids):
+        logger.warning(
+            f"Creation failed: User {current_user_id} provided invalid director IDs"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more director IDs are invalid.",
+        )
+
     movie_fields = movie_data.model_dump(
         exclude={"genre_ids", "star_ids", "director_ids"}
     )

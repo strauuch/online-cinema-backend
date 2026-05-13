@@ -284,6 +284,16 @@ async def create_star(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="This star already exists."
         )
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            f"Unexpected error during star creation by user {current_user_id}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal error occurred.",
+        )
     return new_star
 
 
@@ -660,7 +670,7 @@ async def create_certification(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Certification with this name already exists.",
         )
-    except SQLAlchemyError as e:
+    except Exception as e:
         await db.rollback()
         logger.error(
             f"Database error during certification creation: {str(e)}", exc_info=True

@@ -1154,7 +1154,7 @@ async def test_create_movie_duplicate(admin_client, movie_factory, db_session):
 
 @pytest.mark.asyncio
 async def test_create_movie_validation_error(admin_client):
-    payload = {"name": ""}  # невалидный
+    payload = {"name": ""}
     response = await admin_client.post("/api/v1/admin/movies/", json=payload)
     assert response.status_code == 422
 
@@ -1227,7 +1227,6 @@ async def test_create_movie_internal_error(admin_client, monkeypatch, movie_fact
 
 @pytest.mark.asyncio
 async def test_create_movie_with_meta_score_and_gross(admin_client, movie_factory, db_session):
-    """Успешное создание с дополнительными полями meta_score и gross"""
     genre = await movie_factory.create_genre(f"MetaTest_{uuid.uuid4().hex[:6]}")
     star = await db_session.scalar(select(StarModel).limit(1))
     director = await db_session.scalar(select(DirectorModel).limit(1))
@@ -1284,7 +1283,6 @@ async def test_create_movie_invalid_star_ids(admin_client, movie_factory, db_ses
 
 @pytest.mark.asyncio
 async def test_create_movie_invalid_director_ids(admin_client, movie_factory, db_session):
-    """Неверные ID режиссёров"""
     genre = await movie_factory.create_genre()
     cert = await db_session.scalar(select(CertificationModel).limit(1))
     star = await db_session.scalar(select(StarModel).limit(1))
@@ -1309,14 +1307,13 @@ async def test_create_movie_invalid_director_ids(admin_client, movie_factory, db
 
 @pytest.mark.asyncio
 async def test_create_movie_validation_errors(admin_client):
-    """Проверка валидаторов полей (year, imdb, price, time, description)"""
     payload = {
         "name": "Validation Movie",
-        "year": 1800,                    # слишком старый
-        "time": 350,                     # слишком длинный
-        "imdb": 10.5,                    # > 10
-        "description": "short",          # меньше 10 символов
-        "price": "-10.00",               # отрицательная цена
+        "year": 1800,
+        "time": 350,
+        "imdb": 10.5,
+        "description": "short",
+        "price": "-10.00",
         "certification_id": 1,
         "genre_ids": [1],
         "star_ids": [1],
@@ -1329,7 +1326,6 @@ async def test_create_movie_validation_errors(admin_client):
 
 @pytest.mark.asyncio
 async def test_create_movie_empty_genre_ids(admin_client, movie_factory, db_session):
-    """Попытка создать фильм с пустым списком жанров (должно падать по min_length)"""
     cert = await db_session.scalar(select(CertificationModel).limit(1))
     star = await db_session.scalar(select(StarModel).limit(1))
     director = await db_session.scalar(select(DirectorModel).limit(1))
@@ -1348,12 +1344,11 @@ async def test_create_movie_empty_genre_ids(admin_client, movie_factory, db_sess
     }
 
     response = await admin_client.post("/api/v1/admin/movies/", json=payload)
-    assert response.status_code == 422  # или 400, в зависимости от валидации
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
 async def test_create_movie_internal_error_flush(admin_client, monkeypatch, movie_factory, db_session):
-    """Тест обработки внутренней ошибки БД (на этапе flush)"""
     async def fake_flush(*args, **kwargs):
         raise SQLAlchemyError("Simulated flush error")
 
@@ -1381,3 +1376,76 @@ async def test_create_movie_internal_error_flush(admin_client, monkeypatch, movi
 
     assert response.status_code == 500
     assert "database error" in response.json()["detail"].lower()
+
+# ====================== GET /deleted/ ======================
+
+@pytest.mark.asyncio
+async def test_list_deleted_movies_success(admin_client, movie_factory, db_session):
+    from datetime import datetime
+
+    movie = await movie_factory.create_movie(name="Active Movie")
+    deleted_movie = await movie_factory.create_movie(name="Deleted Movie")
+
+    deleted_movie.is_deleted = True
+    deleted_movie.deleted_at = datetime.utcnow()
+    await db_session.commit()
+
+    response = await admin_client.get("/api/v1/admin/movies/deleted/")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+    assert "total" in data
+    assert data["total"] >= 1
+
+    deleted_names = [item["name"] for item in data["items"]]
+    assert "Deleted Movie" in deleted_names
+    assert any(item["is_deleted"] is True for item in data["items"])
+
+
+@pytest.mark.asyncio
+async def test_list_deleted_movies_pagination(admin_client, movie_factory, db_session):
+    from datetime import datetime
+
+    for i in range(12):
+        movie = await movie_factory.create_movie(name=f"Deleted Movie {i}")
+        movie.is_deleted = True
+        movie.deleted_at = datetime.utcnow()
+
+    await db_session.commit()
+
+    response = await admin_client.get("/api/v1/admin/movies/deleted/?page=1&size=5")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 5
+    assert data["page"] == 1
+    assert data["size"] == 5
+    assert data["total"] >= 12
+
+
+@pytest.mark.asyncio
+async def test_list_deleted_movies_empty(admin_client, db_session):
+    from sqlalchemy import text
+
+    await db_session.execute(text("UPDATE movies SET is_deleted = FALSE, deleted_at = NULL"))
+    await db_session.commit()
+    response = await admin_client.get("/api/v1/admin/movies/deleted/")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["items"] == []
+    assert data["total"] == 0
+    assert data["page"] == 1
+
+
+@pytest.mark.asyncio
+async def test_list_deleted_movies_unauthorized(client):
+    response = await client.get("/api/v1/admin/movies/deleted/")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_list_deleted_movies_forbidden_regular_user(authenticated_client):
+    response = await authenticated_client.get("/api/v1/admin/movies/deleted/")
+    assert response.status_code == 403

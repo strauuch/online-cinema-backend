@@ -25,6 +25,7 @@ class CommentFactory:
             user_id = user.id
         if user_id is None:
             from app.tests.factories.user import UserFactory
+
             user_factory = UserFactory(self.db)
             temp_user = await user_factory.create_active_user()
             user_id = temp_user.id

@@ -132,6 +132,7 @@ async def authenticated_client2(client, user_factory, jwt_manager):
     client.headers["Authorization"] = f"Bearer {access_token}"
     return client
 
+
 @pytest_asyncio.fixture
 async def comment_factory(db_session):
     return CommentFactory(db_session)

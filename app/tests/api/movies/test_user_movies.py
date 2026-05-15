@@ -16,7 +16,6 @@ from app.database.models.movies import (
 )
 from app.database.models.enums import NotificationType
 
-
 BASE = "/api/v1/movies"
 
 
@@ -80,7 +79,9 @@ async def test_list_movies_second_page(client, movie_factory):
 @pytest.mark.asyncio
 async def test_list_movies_filter_by_year(client, movie_factory):
     target_year = 1999
-    await movie_factory.create_movie(name=f"OldMovie_{uuid.uuid4().hex[:6]}", year=target_year)
+    await movie_factory.create_movie(
+        name=f"OldMovie_{uuid.uuid4().hex[:6]}", year=target_year
+    )
     await movie_factory.create_movie(name=f"NewMovie_{uuid.uuid4().hex[:6]}", year=2024)
 
     response = await client.get(f"{BASE}/?year={target_year}")
@@ -249,7 +250,17 @@ async def test_list_movies_response_shape(client, movie_factory):
 
     assert response.status_code == 200
     item = response.json()["items"][0]
-    for field in ("id", "uuid", "name", "year", "imdb", "price", "genres", "rating_avg", "rating_count"):
+    for field in (
+        "id",
+        "uuid",
+        "name",
+        "year",
+        "imdb",
+        "price",
+        "genres",
+        "rating_avg",
+        "rating_count",
+    ):
         assert field in item, f"Missing field: {field}"
 
 
@@ -302,8 +313,21 @@ async def test_get_movie_detail_response_shape(client, movie_factory):
 
     assert response.status_code == 200
     data = response.json()
-    for field in ("id", "uuid", "name", "year", "time", "imdb", "votes", "description",
-                  "price", "genres", "stars", "directors", "certification"):
+    for field in (
+        "id",
+        "uuid",
+        "name",
+        "year",
+        "time",
+        "imdb",
+        "votes",
+        "description",
+        "price",
+        "genres",
+        "stars",
+        "directors",
+        "certification",
+    ):
         assert field in data, f"Missing field: {field}"
 
 
@@ -399,11 +423,13 @@ async def test_get_notifications_success(authenticated_client, db_session, jwt_m
     payload = jwt_manager.decode_access_token(token)
     user_id = payload["user_id"]
 
-    db_session.add(NotificationModel(
-        user_id=user_id,
-        notification_type=NotificationType.SYSTEM,
-        content="Test notification",
-    ))
+    db_session.add(
+        NotificationModel(
+            user_id=user_id,
+            notification_type=NotificationType.SYSTEM,
+            content="Test notification",
+        )
+    )
     await db_session.commit()
 
     response = await authenticated_client.get(f"{BASE}/notifications/")
@@ -429,11 +455,13 @@ async def test_get_notifications_only_own(
     other_user = await user_factory.create_active_user(
         email=f"other_{uuid.uuid4()}@test.com"
     )
-    db_session.add(NotificationModel(
-        user_id=other_user.id,
-        notification_type=NotificationType.SYSTEM,
-        content="Not yours",
-    ))
+    db_session.add(
+        NotificationModel(
+            user_id=other_user.id,
+            notification_type=NotificationType.SYSTEM,
+            content="Not yours",
+        )
+    )
     await db_session.commit()
 
     response = await authenticated_client.get(f"{BASE}/notifications/")
@@ -447,16 +475,20 @@ async def test_get_notifications_only_own(
 
 
 @pytest.mark.asyncio
-async def test_get_notifications_response_shape(authenticated_client, db_session, jwt_manager):
+async def test_get_notifications_response_shape(
+    authenticated_client, db_session, jwt_manager
+):
     token = authenticated_client.headers["Authorization"].split(" ")[1]
     payload = jwt_manager.decode_access_token(token)
     user_id = payload["user_id"]
 
-    db_session.add(NotificationModel(
-        user_id=user_id,
-        notification_type=NotificationType.SYSTEM,
-        content="Shape test",
-    ))
+    db_session.add(
+        NotificationModel(
+            user_id=user_id,
+            notification_type=NotificationType.SYSTEM,
+            content="Shape test",
+        )
+    )
     await db_session.commit()
 
     response = await authenticated_client.get(f"{BASE}/notifications/")
@@ -530,10 +562,10 @@ async def test_mark_notification_as_read_other_user(
 
 
 @pytest.mark.asyncio
-async def test_mark_notification_as_read_requires_auth(client, user_factory, db_session):
-    user = await user_factory.create_active_user(
-        email=f"bare_{uuid.uuid4()}@test.com"
-    )
+async def test_mark_notification_as_read_requires_auth(
+    client, user_factory, db_session
+):
+    user = await user_factory.create_active_user(email=f"bare_{uuid.uuid4()}@test.com")
     notif = NotificationModel(
         user_id=user.id,
         notification_type=NotificationType.SYSTEM,
@@ -554,7 +586,9 @@ async def test_mark_notification_as_read_requires_auth(client, user_factory, db_
 
 
 @pytest.mark.asyncio
-async def test_list_comments_success(client, movie_factory, user_factory, comment_factory):
+async def test_list_comments_success(
+    client, movie_factory, user_factory, comment_factory
+):
     other_user = await user_factory.create_active_user(
         email=f"other_{uuid.uuid4()}@test.com"
     )
@@ -570,7 +604,9 @@ async def test_list_comments_success(client, movie_factory, user_factory, commen
 
 
 @pytest.mark.asyncio
-async def test_list_comments_accessible_without_auth(client, movie_factory, user_factory, comment_factory):
+async def test_list_comments_accessible_without_auth(
+    client, movie_factory, user_factory, comment_factory
+):
     other_user = await user_factory.create_active_user(
         email=f"other_{uuid.uuid4()}@test.com"
     )
@@ -590,7 +626,9 @@ async def test_list_comments_movie_not_found(client):
 
 
 @pytest.mark.asyncio
-async def test_list_comments_pagination(client, movie_factory, comment_factory, user_factory):
+async def test_list_comments_pagination(
+    client, movie_factory, comment_factory, user_factory
+):
     other_user = await user_factory.create_active_user(
         email=f"other_{uuid.uuid4()}@test.com"
     )
@@ -636,7 +674,9 @@ async def test_list_comments_empty_movie(client, movie_factory):
 
 
 @pytest.mark.asyncio
-async def test_add_comment_success(authenticated_client, movie_factory, db_session, jwt_manager):
+async def test_add_comment_success(
+    authenticated_client, movie_factory, db_session, jwt_manager
+):
     movie = await movie_factory.create_movie()
 
     response = await authenticated_client.post(
@@ -753,8 +793,7 @@ async def test_update_comment_success(
     comment = await comment_factory.create_comment(movie=movie, user=user)
 
     response = await authenticated_client.patch(
-        f"{BASE}/comments/{comment.id}/",
-        json={"text": "Updated professional text"}
+        f"{BASE}/comments/{comment.id}/", json={"text": "Updated professional text"}
     )
 
     assert response.status_code == 200
@@ -771,7 +810,9 @@ async def test_update_comment_not_owner(
     other_user = await user_factory.create_active_user(
         email=f"owner_{uuid.uuid4()}@test.com"
     )
-    comment = await comment_factory.create_comment(movie_id=movie.id, user_id=other_user.id)
+    comment = await comment_factory.create_comment(
+        movie_id=movie.id, user_id=other_user.id
+    )
 
     response = await authenticated_client.patch(
         f"{BASE}/comments/{comment.id}/", json={"text": "Steal the comment"}
@@ -790,9 +831,13 @@ async def test_update_comment_not_found(authenticated_client):
 
 
 @pytest.mark.asyncio
-async def test_update_comment_requires_auth(client, movie_factory, comment_factory, user_factory):
+async def test_update_comment_requires_auth(
+    client, movie_factory, comment_factory, user_factory
+):
     movie = await movie_factory.create_movie()
-    user = await user_factory.create_active_user(email=f"noauth_{uuid.uuid4()}@test.com")
+    user = await user_factory.create_active_user(
+        email=f"noauth_{uuid.uuid4()}@test.com"
+    )
     comment = await comment_factory.create_comment(movie_id=movie.id, user_id=user.id)
 
     response = await client.patch(
@@ -827,13 +872,20 @@ async def test_update_comment_validation_empty_text(
 
 @pytest.mark.asyncio
 async def test_like_comment_success(
-    authenticated_client, movie_factory, comment_factory, user_factory, db_session, jwt_manager
+    authenticated_client,
+    movie_factory,
+    comment_factory,
+    user_factory,
+    db_session,
+    jwt_manager,
 ):
     movie = await movie_factory.create_movie()
     other_user = await user_factory.create_active_user(
         email=f"author_{uuid.uuid4()}@test.com"
     )
-    comment = await comment_factory.create_comment(movie_id=movie.id, user_id=other_user.id)
+    comment = await comment_factory.create_comment(
+        movie_id=movie.id, user_id=other_user.id
+    )
 
     response = await authenticated_client.post(f"{BASE}/comments/{comment.id}/like/")
 
@@ -855,13 +907,20 @@ async def test_like_comment_success(
 
 @pytest.mark.asyncio
 async def test_unlike_comment_toggle(
-    authenticated_client, movie_factory, comment_factory, user_factory, db_session, jwt_manager
+    authenticated_client,
+    movie_factory,
+    comment_factory,
+    user_factory,
+    db_session,
+    jwt_manager,
 ):
     movie = await movie_factory.create_movie()
     other_user = await user_factory.create_active_user(
         email=f"author2_{uuid.uuid4()}@test.com"
     )
-    comment = await comment_factory.create_comment(movie_id=movie.id, user_id=other_user.id)
+    comment = await comment_factory.create_comment(
+        movie_id=movie.id, user_id=other_user.id
+    )
 
     await authenticated_client.post(f"{BASE}/comments/{comment.id}/like/")
     response = await authenticated_client.post(f"{BASE}/comments/{comment.id}/like/")
@@ -890,9 +949,13 @@ async def test_like_comment_not_found(authenticated_client):
 
 
 @pytest.mark.asyncio
-async def test_like_comment_requires_auth(client, movie_factory, comment_factory, user_factory):
+async def test_like_comment_requires_auth(
+    client, movie_factory, comment_factory, user_factory
+):
     movie = await movie_factory.create_movie()
-    user = await user_factory.create_active_user(email=f"likeanon_{uuid.uuid4()}@test.com")
+    user = await user_factory.create_active_user(
+        email=f"likeanon_{uuid.uuid4()}@test.com"
+    )
     comment = await comment_factory.create_comment(movie_id=movie.id, user_id=user.id)
 
     response = await client.post(f"{BASE}/comments/{comment.id}/like/")
@@ -956,7 +1019,9 @@ async def test_delete_comment_forbidden_for_non_owner(
     other_user = await user_factory.create_active_user(
         email=f"otherowner_{uuid.uuid4()}@test.com"
     )
-    comment = await comment_factory.create_comment(movie_id=movie.id, user_id=other_user.id)
+    comment = await comment_factory.create_comment(
+        movie_id=movie.id, user_id=other_user.id
+    )
 
     response = await authenticated_client.delete(f"{BASE}/comments/{comment.id}/")
 
@@ -968,7 +1033,9 @@ async def test_delete_comment_by_admin(
     admin_client, movie_factory, comment_factory, user_factory, db_session
 ):
     movie = await movie_factory.create_movie()
-    user = await user_factory.create_active_user(email=f"victim_{uuid.uuid4()}@test.com")
+    user = await user_factory.create_active_user(
+        email=f"victim_{uuid.uuid4()}@test.com"
+    )
     comment = await comment_factory.create_comment(movie_id=movie.id, user_id=user.id)
 
     response = await admin_client.delete(f"{BASE}/comments/{comment.id}/")
@@ -986,7 +1053,9 @@ async def test_delete_comment_by_admin_sends_notification(
     admin_client, movie_factory, comment_factory, user_factory, db_session
 ):
     movie = await movie_factory.create_movie()
-    user = await user_factory.create_active_user(email=f"notify_{uuid.uuid4()}@test.com")
+    user = await user_factory.create_active_user(
+        email=f"notify_{uuid.uuid4()}@test.com"
+    )
     comment = await comment_factory.create_comment(movie_id=movie.id, user_id=user.id)
 
     await admin_client.delete(f"{BASE}/comments/{comment.id}/")
@@ -1008,9 +1077,13 @@ async def test_delete_comment_not_found(authenticated_client):
 
 
 @pytest.mark.asyncio
-async def test_delete_comment_requires_auth(client, movie_factory, comment_factory, user_factory):
+async def test_delete_comment_requires_auth(
+    client, movie_factory, comment_factory, user_factory
+):
     movie = await movie_factory.create_movie()
-    user = await user_factory.create_active_user(email=f"delnoauth_{uuid.uuid4()}@test.com")
+    user = await user_factory.create_active_user(
+        email=f"delnoauth_{uuid.uuid4()}@test.com"
+    )
     comment = await comment_factory.create_comment(movie_id=movie.id, user_id=user.id)
 
     response = await client.delete(f"{BASE}/comments/{comment.id}/")
@@ -1024,7 +1097,9 @@ async def test_delete_comment_requires_auth(client, movie_factory, comment_facto
 
 
 @pytest.mark.asyncio
-async def test_add_favorite_success(authenticated_client, movie_factory, db_session, jwt_manager):
+async def test_add_favorite_success(
+    authenticated_client, movie_factory, db_session, jwt_manager
+):
     movie = await movie_factory.create_movie()
 
     response = await authenticated_client.post(f"{BASE}/{movie.uuid}/favorite/")
@@ -1135,7 +1210,9 @@ async def test_remove_favorite_requires_auth(client, movie_factory):
 
 
 @pytest.mark.asyncio
-async def test_rate_movie_success(authenticated_client, movie_factory, db_session, jwt_manager):
+async def test_rate_movie_success(
+    authenticated_client, movie_factory, db_session, jwt_manager
+):
     movie = await movie_factory.create_movie()
 
     response = await authenticated_client.post(
@@ -1165,9 +1242,7 @@ async def test_rate_movie_update_existing(
 ):
     movie = await movie_factory.create_movie()
 
-    await authenticated_client.post(
-        f"{BASE}/{movie.uuid}/rating/", json={"score": 5}
-    )
+    await authenticated_client.post(f"{BASE}/{movie.uuid}/rating/", json={"score": 5})
     response = await authenticated_client.post(
         f"{BASE}/{movie.uuid}/rating/", json={"score": 9}
     )
@@ -1282,7 +1357,9 @@ async def test_remove_rating_requires_auth(client, movie_factory):
 
 
 @pytest.mark.asyncio
-async def test_vote_movie_like(authenticated_client, movie_factory, db_session, jwt_manager):
+async def test_vote_movie_like(
+    authenticated_client, movie_factory, db_session, jwt_manager
+):
     movie = await movie_factory.create_movie()
 
     response = await authenticated_client.post(
@@ -1307,7 +1384,9 @@ async def test_vote_movie_like(authenticated_client, movie_factory, db_session, 
 
 
 @pytest.mark.asyncio
-async def test_vote_movie_dislike(authenticated_client, movie_factory, db_session, jwt_manager):
+async def test_vote_movie_dislike(
+    authenticated_client, movie_factory, db_session, jwt_manager
+):
     movie = await movie_factory.create_movie()
 
     response = await authenticated_client.post(
@@ -1353,7 +1432,9 @@ async def test_vote_movie_update_does_not_increment_counter(
 ):
     movie = await movie_factory.create_movie(votes=0)
 
-    await authenticated_client.post(f"{BASE}/{movie.uuid}/vote/", json={"is_like": True})
+    await authenticated_client.post(
+        f"{BASE}/{movie.uuid}/vote/", json={"is_like": True}
+    )
     await db_session.refresh(movie)
     votes_after_first = movie.votes
 

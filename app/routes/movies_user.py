@@ -248,7 +248,10 @@ async def update_my_comment(
 
         stmt = (
             select(MovieCommentModel)
-            .options(joinedload(MovieCommentModel.user), selectinload(MovieCommentModel.likes))
+            .options(
+                joinedload(MovieCommentModel.user),
+                selectinload(MovieCommentModel.likes),
+            )
             .where(MovieCommentModel.id == comment_id)
         )
         result = await db.execute(stmt)

@@ -44,7 +44,9 @@ async def test_create_genre_validation_error(admin_client):
 @pytest.mark.asyncio
 async def test_create_genre_unauthorized(client):
     unique_name = f"Genre_{uuid.uuid4().hex[:8]}"
-    response = await client.post("/api/v1/admin/movies/genres/", json={"name": unique_name})
+    response = await client.post(
+        "/api/v1/admin/movies/genres/", json={"name": unique_name}
+    )
     assert response.status_code == 401
 
 
@@ -62,6 +64,7 @@ async def test_create_genre_internal_server_error(
     admin_client, monkeypatch, db_session
 ):
     unique_name = f"{uuid.uuid4().hex[:8]}"
+
     async def fake_commit(*args, **kwargs):
         raise Exception("Simulated unexpected error")
 
@@ -477,9 +480,7 @@ async def test_delete_star_forbidden_regular_user(
 async def test_get_directors_list_success(admin_client, movie_factory):
     unique_name = f"Director_{uuid.uuid4().hex[:8]}"
     unique_name1 = f"Director_{uuid.uuid4().hex[:8]}"
-    await movie_factory.create_movie(
-        directors=[unique_name, unique_name1]
-    )
+    await movie_factory.create_movie(directors=[unique_name, unique_name1])
 
     response = await admin_client.get("/api/v1/admin/movies/directors/")
 
@@ -580,6 +581,7 @@ async def test_create_director_forbidden_regular_user(authenticated_client):
 @pytest.mark.asyncio
 async def test_create_director_internal_error(admin_client, monkeypatch, db_session):
     unique_name = f"Director_{uuid.uuid4().hex[:8]}"
+
     async def fake_commit(*args, **kwargs):
         raise Exception("Simulated unexpected error")
 
@@ -674,9 +676,7 @@ async def test_update_director_unauthorized(client, movie_factory, db_session):
     await movie_factory.create_movie(directors=[unique_name])
 
     director = await db_session.scalar(
-        select(DirectorModel).where(
-            DirectorModel.name == unique_name
-        )
+        select(DirectorModel).where(DirectorModel.name == unique_name)
     )
 
     response = await client.patch(
@@ -741,9 +741,7 @@ async def test_delete_director_unauthorized(client, movie_factory, db_session):
     await movie_factory.create_movie(directors=[unique_name])
 
     director = await db_session.scalar(
-        select(DirectorModel).where(
-            DirectorModel.name == unique_name
-        )
+        select(DirectorModel).where(DirectorModel.name == unique_name)
     )
 
     response = await client.delete(f"/api/v1/admin/movies/directors/{director.id}/")
@@ -884,6 +882,7 @@ async def test_create_certification_internal_error(
     admin_client, monkeypatch, db_session
 ):
     unique_name = f"Certification_{uuid.uuid4().hex[:8]}"
+
     async def fake_commit(*args, **kwargs):
         raise Exception("Simulated unexpected error")
 

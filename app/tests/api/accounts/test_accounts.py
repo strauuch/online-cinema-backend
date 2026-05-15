@@ -521,7 +521,9 @@ async def test_refresh_token_not_in_db(client, user_factory, jwt_manager):
     unique_email = f"{uuid.uuid4()}@test.com"
     user = await user_factory.create_active_user(email=unique_email)
 
-    refresh_token = jwt_manager.create_refresh_token({"user_id": user.id, "salt": uuid.uuid4().hex})
+    refresh_token = jwt_manager.create_refresh_token(
+        {"user_id": user.id, "salt": uuid.uuid4().hex}
+    )
 
     response = await client.post(
         "/api/v1/accounts/refresh/", json={"refresh_token": refresh_token}
@@ -717,7 +719,7 @@ async def test_update_profile_avatar_replacement(authenticated_client):
         files={
             "avatar": ("old_avatar.jpg", b1, "image/jpeg"),
             "first_name": (None, "TestUser"),
-        }
+        },
     )
     assert response1.status_code == 200
 
@@ -731,7 +733,7 @@ async def test_update_profile_avatar_replacement(authenticated_client):
         files={
             "avatar": ("new_avatar.jpg", b2, "image/jpeg"),
             "first_name": (None, "TestUser"),
-        }
+        },
     )
     assert response2.status_code == 200
     data = response2.json()
@@ -739,9 +741,7 @@ async def test_update_profile_avatar_replacement(authenticated_client):
 
 
 @pytest.mark.asyncio
-async def test_update_profile_deletes_old_avatar(
-    authenticated_client, s3_storage_fake
-):
+async def test_update_profile_deletes_old_avatar(authenticated_client, s3_storage_fake):
     img1 = Image.new("RGB", (100, 100), "blue")
     b1 = BytesIO()
     img1.save(b1, "JPEG")
@@ -752,7 +752,7 @@ async def test_update_profile_deletes_old_avatar(
         files={
             "avatar": ("old_avatar.jpg", b1, "image/jpeg"),
             "first_name": (None, "TestUser"),
-        }
+        },
     )
 
     img2 = Image.new("RGB", (100, 100), "green")
@@ -766,7 +766,7 @@ async def test_update_profile_deletes_old_avatar(
             files={
                 "avatar": ("new_avatar.jpg", b2, "image/jpeg"),
                 "first_name": (None, "TestUser"),
-            }
+            },
         )
 
         assert response.status_code == 200
@@ -1107,9 +1107,7 @@ async def test_admin_list_users_with_filters(admin_client, user_factory):
     unique_email3 = f"{uuid.uuid4()}@example.com"
     await user_factory.create_active_user(email=unique_email1)
     await user_factory.create_active_user(email=unique_email2)
-    inactive = await user_factory.create_user(
-        is_active=False, email=unique_email3
-    )
+    inactive = await user_factory.create_user(is_active=False, email=unique_email3)
 
     response = await admin_client.get("/api/v1/accounts/admin/users/?is_active=true")
     assert response.status_code == 200
@@ -1157,9 +1155,7 @@ async def test_admin_list_users_combined_filters(admin_client, user_factory):
     unique_email3 = f"{uuid.uuid4()}@example.com"
     await user_factory.create_active_user(email=unique_email1)
     await user_factory.create_active_user(email=unique_email2)
-    inactive = await user_factory.create_user(
-        is_active=False, email=unique_email3
-    )
+    inactive = await user_factory.create_user(is_active=False, email=unique_email3)
 
     response = await admin_client.get(
         "/api/v1/accounts/admin/users/?" "email_query=doe&" "is_active=true"

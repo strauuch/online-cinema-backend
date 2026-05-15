@@ -11,7 +11,9 @@ from app.database.models.movies import (
     CertificationModel,
 )
 
-# ====================== POST /genres/ ======================
+# ==============================================================================
+# POST /genres/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
@@ -41,14 +43,16 @@ async def test_create_genre_validation_error(admin_client):
 
 @pytest.mark.asyncio
 async def test_create_genre_unauthorized(client):
-    response = await client.post("/api/v1/admin/movies/genres/", json={"name": "Test"})
+    unique_name = f"Genre_{uuid.uuid4().hex[:8]}"
+    response = await client.post("/api/v1/admin/movies/genres/", json={"name": unique_name})
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_create_genre_forbidden_regular_user(authenticated_client):
+    unique_name = f"Genre_{uuid.uuid4().hex[:8]}"
     response = await authenticated_client.post(
-        "/api/v1/admin/movies/genres/", json={"name": "Forbidden"}
+        "/api/v1/admin/movies/genres/", json={"name": unique_name}
     )
     assert response.status_code == 403
 
@@ -57,13 +61,14 @@ async def test_create_genre_forbidden_regular_user(authenticated_client):
 async def test_create_genre_internal_server_error(
     admin_client, monkeypatch, db_session
 ):
+    unique_name = f"{uuid.uuid4().hex[:8]}"
     async def fake_commit(*args, **kwargs):
         raise Exception("Simulated unexpected error")
 
     monkeypatch.setattr(db_session, "commit", fake_commit)
 
     response = await admin_client.post(
-        "/api/v1/admin/movies/genres/", json={"name": "CrashTest"}
+        "/api/v1/admin/movies/genres/", json={"name": unique_name}
     )
 
     assert response.status_code == 500
@@ -83,7 +88,9 @@ async def test_create_genre_duplicate(admin_client, db_session):
     assert "already exists" in response.json()["detail"].lower()
 
 
-# ====================== PATCH /genres/{genre_id}/ ======================
+# ==============================================================================
+# PATCH /genres/{genre_id}/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
@@ -115,7 +122,8 @@ async def test_update_genre_not_found(admin_client):
 
 @pytest.mark.asyncio
 async def test_update_genre_validation_error(admin_client, movie_factory):
-    genre = await movie_factory.create_genre("TestGenre")
+    unique_name = f"Genre_{uuid.uuid4().hex[:8]}"
+    genre = await movie_factory.create_genre(unique_name)
 
     response = await admin_client.patch(
         f"/api/v1/admin/movies/genres/{genre.id}/", json={"name": ""}
@@ -125,30 +133,37 @@ async def test_update_genre_validation_error(admin_client, movie_factory):
 
 @pytest.mark.asyncio
 async def test_update_genre_unauthorized(client, movie_factory):
-    genre = await movie_factory.create_genre("Unauthorized")
+    unique_name = f"Genre_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Genre_{uuid.uuid4().hex[:8]}"
+    genre = await movie_factory.create_genre(unique_name)
 
     response = await client.patch(
-        f"/api/v1/admin/movies/genres/{genre.id}/", json={"name": "ShouldFail"}
+        f"/api/v1/admin/movies/genres/{genre.id}/", json={"name": unique_name1}
     )
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_update_genre_forbidden_regular_user(authenticated_client, movie_factory):
-    genre = await movie_factory.create_genre("Forbidden")
+    unique_name = f"Genre_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Genre_{uuid.uuid4().hex[:8]}"
+    genre = await movie_factory.create_genre(unique_name)
 
     response = await authenticated_client.patch(
-        f"/api/v1/admin/movies/genres/{genre.id}/", json={"name": "ShouldFail"}
+        f"/api/v1/admin/movies/genres/{genre.id}/", json={"name": unique_name1}
     )
     assert response.status_code == 403
 
 
-# ====================== DELETE /genres/{genre_id}/ ======================
+# ==============================================================================
+# DELETE /genres/{genre_id}/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
 async def test_delete_genre_success(admin_client, movie_factory, db_session):
-    genre = await movie_factory.create_genre("ToBeDeleted")
+    unique_name = f"Genre_{uuid.uuid4().hex[:8]}"
+    genre = await movie_factory.create_genre(unique_name)
 
     response = await admin_client.delete(f"/api/v1/admin/movies/genres/{genre.id}/")
 
@@ -169,7 +184,8 @@ async def test_delete_genre_not_found(admin_client):
 
 @pytest.mark.asyncio
 async def test_delete_genre_unauthorized(client, movie_factory):
-    genre = await movie_factory.create_genre("UnauthorizedDelete")
+    unique_name = f"Genre_{uuid.uuid4().hex[:8]}"
+    genre = await movie_factory.create_genre(unique_name)
 
     response = await client.delete(f"/api/v1/admin/movies/genres/{genre.id}/")
     assert response.status_code == 401
@@ -177,7 +193,8 @@ async def test_delete_genre_unauthorized(client, movie_factory):
 
 @pytest.mark.asyncio
 async def test_delete_genre_forbidden_regular_user(authenticated_client, movie_factory):
-    genre = await movie_factory.create_genre("ForbiddenDelete")
+    unique_name = f"Genre_{uuid.uuid4().hex[:8]}"
+    genre = await movie_factory.create_genre(unique_name)
 
     response = await authenticated_client.delete(
         f"/api/v1/admin/movies/genres/{genre.id}/"
@@ -185,12 +202,16 @@ async def test_delete_genre_forbidden_regular_user(authenticated_client, movie_f
     assert response.status_code == 403
 
 
-# ====================== GET /stars/ ======================
+# ==============================================================================
+# GET /stars/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
 async def test_get_stars_list_success(admin_client, movie_factory):
-    await movie_factory.create_movie(stars=["Leonardo DiCaprio", "Tom Hardy"])
+    unique_name = f"Star_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Star_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(stars=[unique_name, unique_name1])
 
     response = await admin_client.get("/api/v1/admin/movies/stars/")
 
@@ -227,7 +248,9 @@ async def test_get_stars_forbidden_regular_user(authenticated_client):
     assert response.status_code == 403
 
 
-# ====================== POST /stars/ ======================
+# ==============================================================================
+# POST /stars/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
@@ -268,21 +291,25 @@ async def test_create_star_validation_error(admin_client):
 
 @pytest.mark.asyncio
 async def test_create_star_unauthorized(client):
+    unique_name = f"Star_{uuid.uuid4()}"
     response = await client.post(
-        "/api/v1/admin/movies/stars/", json={"name": "Unauthorized"}
+        "/api/v1/admin/movies/stars/", json={"name": unique_name}
     )
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_create_star_forbidden_regular_user(authenticated_client):
+    unique_name = f"Star_{uuid.uuid4()}"
     response = await authenticated_client.post(
-        "/api/v1/admin/movies/stars/", json={"name": "Forbidden"}
+        "/api/v1/admin/movies/stars/", json={"name": unique_name}
     )
     assert response.status_code == 403
 
 
-# ====================== PATCH /stars/{star_id}/ ======================
+# ==============================================================================
+# PATCH /stars/{star_id}/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
@@ -306,8 +333,9 @@ async def test_update_star_success(admin_client, movie_factory, db_session):
 
 @pytest.mark.asyncio
 async def test_update_star_not_found(admin_client):
+    unique_name = f"Star_{uuid.uuid4().hex[:8]}"
     response = await admin_client.patch(
-        "/api/v1/admin/movies/stars/99999/", json={"name": "NotExist"}
+        "/api/v1/admin/movies/stars/99999/", json={"name": unique_name}
     )
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
@@ -315,11 +343,13 @@ async def test_update_star_not_found(admin_client):
 
 @pytest.mark.asyncio
 async def test_update_star_duplicate_name(admin_client, movie_factory, db_session):
-    await movie_factory.create_movie(stars=["Existing Star"])
-    await movie_factory.create_movie(stars=["Another Star"])
+    unique_existing_name = f"Star_{uuid.uuid4().hex[:8]}"
+    unique_name = f"Star_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(stars=[unique_existing_name])
+    await movie_factory.create_movie(stars=[unique_name])
 
     star_to_update = await db_session.scalar(
-        select(StarModel).where(StarModel.name == "Another Star")
+        select(StarModel).where(StarModel.name == unique_name)
     )
 
     response = await admin_client.patch(
@@ -333,10 +363,11 @@ async def test_update_star_duplicate_name(admin_client, movie_factory, db_sessio
 
 @pytest.mark.asyncio
 async def test_update_star_validation_error(admin_client, movie_factory, db_session):
-    await movie_factory.create_movie(stars=["Validation Test"])
+    unique_name = f"Star_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(stars=[unique_name])
 
     star = await db_session.scalar(
-        select(StarModel).where(StarModel.name == "Validation Test")
+        select(StarModel).where(StarModel.name == unique_name)
     )
 
     response = await admin_client.patch(
@@ -347,14 +378,16 @@ async def test_update_star_validation_error(admin_client, movie_factory, db_sess
 
 @pytest.mark.asyncio
 async def test_update_star_unauthorized(client, movie_factory, db_session):
-    await movie_factory.create_movie(stars=["Unauthorized Update"])
+    unique_name = f"Star_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Star_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(stars=[unique_name])
 
     star = await db_session.scalar(
-        select(StarModel).where(StarModel.name == "Unauthorized Update")
+        select(StarModel).where(StarModel.name == unique_name)
     )
 
     response = await client.patch(
-        f"/api/v1/admin/movies/stars/{star.id}/", json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/stars/{star.id}/", json={"name": unique_name1}
     )
     assert response.status_code == 401
 
@@ -363,26 +396,31 @@ async def test_update_star_unauthorized(client, movie_factory, db_session):
 async def test_update_star_forbidden_regular_user(
     authenticated_client, movie_factory, db_session
 ):
-    await movie_factory.create_movie(stars=["Forbidden Update"])
+    unique_name = f"Star_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Star_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(stars=[unique_name])
 
     star = await db_session.scalar(
-        select(StarModel).where(StarModel.name == "Forbidden Update")
+        select(StarModel).where(StarModel.name == unique_name)
     )
 
     response = await authenticated_client.patch(
-        f"/api/v1/admin/movies/stars/{star.id}/", json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/stars/{star.id}/", json={"name": unique_name1}
     )
     assert response.status_code == 403
 
 
-# ====================== DELETE /stars/{star_id}/ ======================
+# ==============================================================================
+# DELETE /stars/{star_id}/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
 async def test_delete_star_success(admin_client, movie_factory, db_session):
-    await movie_factory.create_movie(stars=["Star To Delete"])
+    unique_name = f"Star_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(stars=[unique_name])
     star = await db_session.scalar(
-        select(StarModel).where(StarModel.name == "Star To Delete")
+        select(StarModel).where(StarModel.name == unique_name)
     )
 
     response = await admin_client.delete(f"/api/v1/admin/movies/stars/{star.id}/")
@@ -402,10 +440,11 @@ async def test_delete_star_not_found(admin_client):
 
 @pytest.mark.asyncio
 async def test_delete_star_unauthorized(client, movie_factory, db_session):
-    await movie_factory.create_movie(stars=["Unauthorized Delete"])
+    unique_name = f"Star_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(stars=[unique_name])
 
     star = await db_session.scalar(
-        select(StarModel).where(StarModel.name == "Unauthorized Delete")
+        select(StarModel).where(StarModel.name == unique_name)
     )
 
     response = await client.delete(f"/api/v1/admin/movies/stars/{star.id}/")
@@ -416,10 +455,11 @@ async def test_delete_star_unauthorized(client, movie_factory, db_session):
 async def test_delete_star_forbidden_regular_user(
     authenticated_client, movie_factory, db_session
 ):
-    await movie_factory.create_movie(stars=["Forbidden Delete"])
+    unique_name = f"Star_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(stars=[unique_name])
 
     star = await db_session.scalar(
-        select(StarModel).where(StarModel.name == "Forbidden Delete")
+        select(StarModel).where(StarModel.name == unique_name)
     )
 
     response = await authenticated_client.delete(
@@ -428,13 +468,17 @@ async def test_delete_star_forbidden_regular_user(
     assert response.status_code == 403
 
 
-# ====================== GET /directors/ ======================
+# ==============================================================================
+# GET /directors/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
 async def test_get_directors_list_success(admin_client, movie_factory):
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Director_{uuid.uuid4().hex[:8]}"
     await movie_factory.create_movie(
-        directors=["Christopher Nolan", "Denis Villeneuve"]
+        directors=[unique_name, unique_name1]
     )
 
     response = await admin_client.get("/api/v1/admin/movies/directors/")
@@ -472,7 +516,9 @@ async def test_get_directors_forbidden_regular_user(authenticated_client):
     assert response.status_code == 403
 
 
-# ====================== POST /directors/ ======================
+# ==============================================================================
+# POST /directors/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
@@ -515,36 +561,41 @@ async def test_create_director_validation_error(admin_client):
 
 @pytest.mark.asyncio
 async def test_create_director_unauthorized(client):
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
     response = await client.post(
-        "/api/v1/admin/movies/directors/", json={"name": "Unauthorized Director"}
+        "/api/v1/admin/movies/directors/", json={"name": unique_name}
     )
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_create_director_forbidden_regular_user(authenticated_client):
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
     response = await authenticated_client.post(
-        "/api/v1/admin/movies/directors/", json={"name": "Forbidden Director"}
+        "/api/v1/admin/movies/directors/", json={"name": unique_name}
     )
     assert response.status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_create_director_internal_error(admin_client, monkeypatch, db_session):
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
     async def fake_commit(*args, **kwargs):
         raise Exception("Simulated unexpected error")
 
     monkeypatch.setattr(db_session, "commit", fake_commit)
 
     response = await admin_client.post(
-        "/api/v1/admin/movies/directors/", json={"name": "CrashTest Director"}
+        "/api/v1/admin/movies/directors/", json={"name": unique_name}
     )
 
     assert response.status_code == 500
     assert "internal error" in response.json()["detail"].lower()
 
 
-# ====================== PATCH /directors/{director_id}/ ======================
+# ==============================================================================
+# PATCH /directors/{director_id}/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
@@ -571,8 +622,9 @@ async def test_update_director_success(admin_client, movie_factory, db_session):
 
 @pytest.mark.asyncio
 async def test_update_director_not_found(admin_client):
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
     response = await admin_client.patch(
-        "/api/v1/admin/movies/directors/99999/", json={"name": "NotExist"}
+        "/api/v1/admin/movies/directors/99999/", json={"name": unique_name}
     )
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
@@ -580,16 +632,18 @@ async def test_update_director_not_found(admin_client):
 
 @pytest.mark.asyncio
 async def test_update_director_duplicate_name(admin_client, movie_factory, db_session):
-    await movie_factory.create_movie(directors=["Existing Director"])
-    await movie_factory.create_movie(directors=["Another Director"])
+    unique_existing_name = f"Director_{uuid.uuid4().hex[:8]}"
+    unique_another_name = f"Director_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(directors=[unique_existing_name])
+    await movie_factory.create_movie(directors=[unique_another_name])
 
     director_to_update = await db_session.scalar(
-        select(DirectorModel).where(DirectorModel.name == "Another Director")
+        select(DirectorModel).where(DirectorModel.name == unique_another_name)
     )
 
     response = await admin_client.patch(
         f"/api/v1/admin/movies/directors/{director_to_update.id}/",
-        json={"name": "Existing Director"},
+        json={"name": unique_existing_name},
     )
 
     assert response.status_code == 400
@@ -600,10 +654,11 @@ async def test_update_director_duplicate_name(admin_client, movie_factory, db_se
 async def test_update_director_validation_error(
     admin_client, movie_factory, db_session
 ):
-    await movie_factory.create_movie(directors=["Validation Director"])
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(directors=[unique_name])
 
     director = await db_session.scalar(
-        select(DirectorModel).where(DirectorModel.name == "Validation Director")
+        select(DirectorModel).where(DirectorModel.name == unique_name)
     )
 
     response = await admin_client.patch(
@@ -614,16 +669,18 @@ async def test_update_director_validation_error(
 
 @pytest.mark.asyncio
 async def test_update_director_unauthorized(client, movie_factory, db_session):
-    await movie_factory.create_movie(directors=["Unauthorized Director Update"])
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Director_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(directors=[unique_name])
 
     director = await db_session.scalar(
         select(DirectorModel).where(
-            DirectorModel.name == "Unauthorized Director Update"
+            DirectorModel.name == unique_name
         )
     )
 
     response = await client.patch(
-        f"/api/v1/admin/movies/directors/{director.id}/", json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/directors/{director.id}/", json={"name": unique_name1}
     )
     assert response.status_code == 401
 
@@ -632,26 +689,31 @@ async def test_update_director_unauthorized(client, movie_factory, db_session):
 async def test_update_director_forbidden_regular_user(
     authenticated_client, movie_factory, db_session
 ):
-    await movie_factory.create_movie(directors=["Forbidden Director Update"])
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Director_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(directors=[unique_name])
 
     director = await db_session.scalar(
-        select(DirectorModel).where(DirectorModel.name == "Forbidden Director Update")
+        select(DirectorModel).where(DirectorModel.name == unique_name)
     )
 
     response = await authenticated_client.patch(
-        f"/api/v1/admin/movies/directors/{director.id}/", json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/directors/{director.id}/", json={"name": unique_name1}
     )
     assert response.status_code == 403
 
 
-# ====================== DELETE /directors/{director_id}/ ======================
+# ==============================================================================
+# DELETE /directors/{director_id}/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
 async def test_delete_director_success(admin_client, movie_factory, db_session):
-    await movie_factory.create_movie(directors=["Director To Delete"])
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(directors=[unique_name])
     director = await db_session.scalar(
-        select(DirectorModel).where(DirectorModel.name == "Director To Delete")
+        select(DirectorModel).where(DirectorModel.name == unique_name)
     )
 
     response = await admin_client.delete(
@@ -675,11 +737,12 @@ async def test_delete_director_not_found(admin_client):
 
 @pytest.mark.asyncio
 async def test_delete_director_unauthorized(client, movie_factory, db_session):
-    await movie_factory.create_movie(directors=["Unauthorized Director Delete"])
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(directors=[unique_name])
 
     director = await db_session.scalar(
         select(DirectorModel).where(
-            DirectorModel.name == "Unauthorized Director Delete"
+            DirectorModel.name == unique_name
         )
     )
 
@@ -691,10 +754,11 @@ async def test_delete_director_unauthorized(client, movie_factory, db_session):
 async def test_delete_director_forbidden_regular_user(
     authenticated_client, movie_factory, db_session
 ):
-    await movie_factory.create_movie(directors=["Forbidden Director Delete"])
+    unique_name = f"Director_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(directors=[unique_name])
 
     director = await db_session.scalar(
-        select(DirectorModel).where(DirectorModel.name == "Forbidden Director Delete")
+        select(DirectorModel).where(DirectorModel.name == unique_name)
     )
 
     response = await authenticated_client.delete(
@@ -703,7 +767,9 @@ async def test_delete_director_forbidden_regular_user(
     assert response.status_code == 403
 
 
-# ====================== GET /certifications/ ======================
+# ==============================================================================
+# GET /certifications/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
@@ -722,7 +788,7 @@ async def test_get_certifications_list_success(admin_client, movie_factory):
 @pytest.mark.asyncio
 async def test_get_certifications_pagination(admin_client, movie_factory, db_session):
     for i in range(10):
-        cert = CertificationModel(name=f"Certification Test {i}")
+        cert = CertificationModel(name=f"Certification_{uuid.uuid4().hex[:8]}")
         db_session.add(cert)
     await db_session.commit()
 
@@ -749,7 +815,9 @@ async def test_get_certifications_forbidden_regular_user(authenticated_client):
     assert response.status_code == 403
 
 
-# ====================== POST /certifications/ ======================
+# ==============================================================================
+# POST /certifications/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
@@ -815,20 +883,23 @@ async def test_create_certification_forbidden_regular_user(authenticated_client)
 async def test_create_certification_internal_error(
     admin_client, monkeypatch, db_session
 ):
+    unique_name = f"Certification_{uuid.uuid4().hex[:8]}"
     async def fake_commit(*args, **kwargs):
         raise Exception("Simulated unexpected error")
 
     monkeypatch.setattr(db_session, "commit", fake_commit)
 
     response = await admin_client.post(
-        "/api/v1/admin/movies/certifications/", json={"name": "CrashTest Cert"}
+        "/api/v1/admin/movies/certifications/", json={"name": unique_name}
     )
 
     assert response.status_code == 500
     assert "internal database error occurred." in response.json()["detail"].lower()
 
 
-# ====================== PATCH /certifications/{cert_id}/ ======================
+# ==============================================================================
+# PATCH /certifications/{cert_id}/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
@@ -853,8 +924,9 @@ async def test_update_certification_success(admin_client, db_session):
 
 @pytest.mark.asyncio
 async def test_update_certification_not_found(admin_client):
+    unique_name = f"Certification_{uuid.uuid4().hex[:8]}"
     response = await admin_client.patch(
-        "/api/v1/admin/movies/certifications/99999/", json={"name": "NotExist"}
+        "/api/v1/admin/movies/certifications/99999/", json={"name": unique_name}
     )
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
@@ -862,14 +934,16 @@ async def test_update_certification_not_found(admin_client):
 
 @pytest.mark.asyncio
 async def test_update_certification_duplicate_name(admin_client, db_session):
-    cert1 = CertificationModel(name="Existing Cert")
-    cert2 = CertificationModel(name="ToBeUpdated")
+    unique_existing_name = f"Certification_{uuid.uuid4().hex[:8]}"
+    unique_another_name = f"Certification_{uuid.uuid4().hex[:8]}"
+    cert1 = CertificationModel(name=unique_existing_name)
+    cert2 = CertificationModel(name=unique_another_name)
     db_session.add_all([cert1, cert2])
     await db_session.commit()
 
     response = await admin_client.patch(
         f"/api/v1/admin/movies/certifications/{cert2.id}/",
-        json={"name": "Existing Cert"},
+        json={"name": unique_existing_name},
     )
 
     assert response.status_code == 400
@@ -878,7 +952,8 @@ async def test_update_certification_duplicate_name(admin_client, db_session):
 
 @pytest.mark.asyncio
 async def test_update_certification_validation_error(admin_client, db_session):
-    cert = CertificationModel(name="Validation Test")
+    unique_name = f"Certification_{uuid.uuid4().hex[:8]}"
+    cert = CertificationModel(name=unique_name)
     db_session.add(cert)
     await db_session.commit()
 
@@ -890,12 +965,14 @@ async def test_update_certification_validation_error(admin_client, db_session):
 
 @pytest.mark.asyncio
 async def test_update_certification_unauthorized(client, db_session):
-    cert = CertificationModel(name="Unauthorized Update")
+    unique_name = f"Certification_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Certification_{uuid.uuid4().hex[:8]}"
+    cert = CertificationModel(name=unique_name)
     db_session.add(cert)
     await db_session.commit()
 
     response = await client.patch(
-        f"/api/v1/admin/movies/certifications/{cert.id}/", json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/certifications/{cert.id}/", json={"name": unique_name1}
     )
     assert response.status_code == 401
 
@@ -904,22 +981,27 @@ async def test_update_certification_unauthorized(client, db_session):
 async def test_update_certification_forbidden_regular_user(
     authenticated_client, db_session
 ):
-    cert = CertificationModel(name="Forbidden Update")
+    unique_name = f"Certification_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Certification_{uuid.uuid4().hex[:8]}"
+    cert = CertificationModel(name=unique_name)
     db_session.add(cert)
     await db_session.commit()
 
     response = await authenticated_client.patch(
-        f"/api/v1/admin/movies/certifications/{cert.id}/", json={"name": "Should Fail"}
+        f"/api/v1/admin/movies/certifications/{cert.id}/", json={"name": unique_name1}
     )
     assert response.status_code == 403
 
 
-# ====================== DELETE /certifications/{cert_id}/ ======================
+# ==============================================================================
+# DELETE /certifications/{cert_id}/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
 async def test_delete_certification_success(admin_client, db_session):
-    cert = CertificationModel(name="ToBeDeletedCert")
+    unique_name = f"Certification_{uuid.uuid4().hex[:8]}"
+    cert = CertificationModel(name=unique_name)
     db_session.add(cert)
     await db_session.commit()
 
@@ -946,7 +1028,8 @@ async def test_delete_certification_not_found(admin_client):
 async def test_delete_certification_with_movies(
     admin_client, movie_factory, db_session
 ):
-    cert = CertificationModel(name="UsedCert")
+    unique_name = f"Certification_{uuid.uuid4().hex[:8]}"
+    cert = CertificationModel(name=unique_name)
     db_session.add(cert)
     await db_session.commit()
     await db_session.refresh(cert)
@@ -974,7 +1057,8 @@ async def test_delete_certification_with_movies(
 
 @pytest.mark.asyncio
 async def test_delete_certification_unauthorized(client, db_session):
-    cert = CertificationModel(name="Unauthorized Delete Cert")
+    unique_name = f"Certification_{uuid.uuid4().hex[:8]}"
+    cert = CertificationModel(name=unique_name)
     db_session.add(cert)
     await db_session.commit()
 
@@ -986,7 +1070,8 @@ async def test_delete_certification_unauthorized(client, db_session):
 async def test_delete_certification_forbidden_regular_user(
     authenticated_client, db_session
 ):
-    cert = CertificationModel(name="Forbidden Delete Cert")
+    unique_name = f"Certification_{uuid.uuid4().hex[:8]}"
+    cert = CertificationModel(name=unique_name)
     db_session.add(cert)
     await db_session.commit()
 
@@ -996,7 +1081,9 @@ async def test_delete_certification_forbidden_regular_user(
     assert response.status_code == 403
 
 
-# ====================== POST / (create movie) ======================
+# ==============================================================================
+# POST / (create movie)
+# ==============================================================================
 
 
 @pytest.mark.asyncio
@@ -1121,8 +1208,9 @@ async def test_create_movie_validation_error(admin_client):
 
 @pytest.mark.asyncio
 async def test_create_movie_unauthorized(client):
+    unique_name = f"Movie_{uuid.uuid4().hex[:8]}"
     payload = {
-        "name": "Test Unauthorized",
+        "name": unique_name,
         "year": 2023,
         "time": 120,
         "imdb": 7.0,
@@ -1139,8 +1227,9 @@ async def test_create_movie_unauthorized(client):
 
 @pytest.mark.asyncio
 async def test_create_movie_forbidden_regular_user(authenticated_client):
+    unique_name = f"Movie_{uuid.uuid4().hex[:8]}"
     payload = {
-        "name": "Test Forbidden",
+        "name": unique_name,
         "year": 2023,
         "time": 120,
         "imdb": 7.0,
@@ -1275,7 +1364,7 @@ async def test_create_movie_invalid_director_ids(
 @pytest.mark.asyncio
 async def test_create_movie_validation_errors(admin_client):
     payload = {
-        "name": "Validation Movie",
+        "name": f"Movie_{uuid.uuid4().hex[:8]}",
         "year": 1800,
         "time": 350,
         "imdb": 10.5,
@@ -1347,14 +1436,17 @@ async def test_create_movie_internal_error_flush(
     assert "database error" in response.json()["detail"].lower()
 
 
-# ====================== GET /deleted/ ======================
+# ==============================================================================
+# GET /deleted/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
 async def test_list_deleted_movies_success(admin_client, movie_factory, db_session):
-
-    movie = await movie_factory.create_movie(name="Active Movie")
-    deleted_movie = await movie_factory.create_movie(name="Deleted Movie")
+    unique_name = f"Movie_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Movie_{uuid.uuid4().hex[:8]}"
+    movie = await movie_factory.create_movie(name=unique_name)
+    deleted_movie = await movie_factory.create_movie(name=unique_name1)
 
     deleted_movie.is_deleted = True
     deleted_movie.deleted_at = datetime.utcnow()
@@ -1369,7 +1461,7 @@ async def test_list_deleted_movies_success(admin_client, movie_factory, db_sessi
     assert data["total"] >= 1
 
     deleted_names = [item["name"] for item in data["items"]]
-    assert "Deleted Movie" in deleted_names
+    assert unique_name1 in deleted_names
     assert any(item["is_deleted"] is True for item in data["items"])
 
 
@@ -1377,7 +1469,7 @@ async def test_list_deleted_movies_success(admin_client, movie_factory, db_sessi
 async def test_list_deleted_movies_pagination(admin_client, movie_factory, db_session):
 
     for i in range(12):
-        movie = await movie_factory.create_movie(name=f"Deleted Movie {i}")
+        movie = await movie_factory.create_movie(name=f"Movie_{uuid.uuid4().hex[:8]}")
         movie.is_deleted = True
         movie.deleted_at = datetime.utcnow()
 
@@ -1427,7 +1519,7 @@ async def test_list_deleted_movies_pagination_with_filters(
     admin_client, movie_factory, db_session
 ):
     for i in range(8):
-        m = await movie_factory.create_movie(name=f"Deleted Pag {i}")
+        m = await movie_factory.create_movie(name=f"Movie_{uuid.uuid4().hex[:8]}")
         m.is_deleted = True
         m.deleted_at = datetime.utcnow()
         db_session.add(m)
@@ -1440,17 +1532,21 @@ async def test_list_deleted_movies_pagination_with_filters(
     assert len(data["items"]) <= 3
 
 
-# ====================== PATCH /{movie_uuid}/ ======================
+# ==============================================================================
+# PATCH /{movie_uuid}/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
 async def test_update_movie_success(admin_client, movie_factory, db_session):
+    unique_name = f"Movie_{uuid.uuid4().hex[:8]}"
+    unique_name1 = f"Movie_{uuid.uuid4().hex[:8]}"
     movie = await movie_factory.create_movie(
-        name="Original Movie", year=2020, time=120, description="Original description"
+        name=unique_name, year=2020, time=120, description="Original description"
     )
 
     payload = {
-        "name": "Updated Movie Title",
+        "name": unique_name1,
         "year": 2023,
         "description": "New updated description that is long enough",
         "meta_score": 85,
@@ -1463,7 +1559,7 @@ async def test_update_movie_success(admin_client, movie_factory, db_session):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["name"] == "Updated Movie Title"
+    assert data["name"] == unique_name1
     assert data["year"] == 2023
     assert data["description"] == payload["description"]
     assert data["meta_score"] == 85
@@ -1472,13 +1568,16 @@ async def test_update_movie_success(admin_client, movie_factory, db_session):
 
 @pytest.mark.asyncio
 async def test_update_movie_relationships(admin_client, movie_factory, db_session):
+    unique_genre = f"Genre_{uuid.uuid4().hex[:6]}"
+    unique_star = f"Star_{uuid.uuid4().hex[:6]}"
+    unique_genre1 = f"Genre_{uuid.uuid4().hex[:6]}"
     movie = await movie_factory.create_movie()
 
-    new_genre = await movie_factory.create_genre("New Action")
-    new_star = await movie_factory.create_genre("New Star")
+    new_genre = await movie_factory.create_genre(unique_genre)
+    new_star = await movie_factory.create_genre(unique_star)
     star = await db_session.scalar(select(StarModel).limit(1))
     director = await db_session.scalar(select(DirectorModel).limit(1))
-    new_genre2 = await movie_factory.create_genre("Thriller Updated")
+    new_genre2 = await movie_factory.create_genre(unique_genre1)
 
     payload = {
         "genre_ids": [new_genre.id, new_genre2.id],
@@ -1601,12 +1700,14 @@ async def test_update_movie_validation_error(admin_client, movie_factory, db_ses
 async def test_update_movie_duplicate_unique_constraint(
     admin_client, movie_factory, db_session
 ):
-    await movie_factory.create_movie(name="Existing Movie", year=2025, time=130)
+    unique_existing_name = f"Movie_{uuid.uuid4().hex[:8]}"
+    unique_name = f"Movie_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(name=unique_existing_name, year=2025, time=130)
     movie_to_update = await movie_factory.create_movie(
-        name="To Update", year=2024, time=120
+        name=unique_name, year=2024, time=120
     )
 
-    payload = {"name": "Existing Movie", "year": 2025, "time": 130}
+    payload = {"name": unique_existing_name, "year": 2025, "time": 130}
 
     response = await admin_client.patch(
         f"/api/v1/admin/movies/{movie_to_update.uuid}/", json=payload
@@ -1703,10 +1804,12 @@ async def test_update_movie_clear_certification(
 async def test_update_movie_integrity_error_on_unique(
     admin_client, movie_factory, db_session
 ):
-    await movie_factory.create_movie(name="Existing Unique Movie", year=2025, time=140)
-    movie_to_update = await movie_factory.create_movie(name="To Update Movie")
+    unique_existing_name = f"Movie_{uuid.uuid4().hex[:8]}"
+    unique_to_update_name = f"Movie_{uuid.uuid4().hex[:8]}"
+    await movie_factory.create_movie(name=unique_existing_name, year=2025, time=140)
+    movie_to_update = await movie_factory.create_movie(name=unique_to_update_name)
 
-    payload = {"name": "Existing Unique Movie", "year": 2025, "time": 140}
+    payload = {"name": unique_existing_name, "year": 2025, "time": 140}
 
     response = await admin_client.patch(
         f"/api/v1/admin/movies/{movie_to_update.uuid}/", json=payload
@@ -1718,12 +1821,15 @@ async def test_update_movie_integrity_error_on_unique(
     )
 
 
-# ====================== DELETE /{movie_uuid}/ ======================
+# ==============================================================================
+# DELETE /{movie_uuid}/
+# ==============================================================================
 
 
 @pytest.mark.asyncio
 async def test_delete_movie_success(admin_client, movie_factory, db_session):
-    movie = await movie_factory.create_movie(name="Movie To Delete")
+    unique_name = f"Movie_{uuid.uuid4().hex[:8]}"
+    movie = await movie_factory.create_movie(name=unique_name)
 
     response = await admin_client.delete(f"/api/v1/admin/movies/{movie.uuid}/")
 
@@ -1750,7 +1856,8 @@ async def test_delete_movie_with_paid_orders(admin_client, movie_factory, db_ses
     from app.database.models.enums import OrderStatusEnum
     from decimal import Decimal
 
-    movie = await movie_factory.create_movie(name="Cannot Delete Movie")
+    unique_name = f"Movie_{uuid.uuid4().hex[:8]}"
+    movie = await movie_factory.create_movie(name=unique_name)
 
     order = OrderModel(
         user_id=1, status=OrderStatusEnum.PAID, total_amount=Decimal("19.99")
@@ -1809,7 +1916,9 @@ async def test_delete_movie_internal_error(
     )
 
 
-# ====================== PATCH /{movie_uuid}/restore/ ======================
+# ==============================================================================
+# PATCH /{movie_uuid}/restore/
+# ==============================================================================
 
 
 @pytest.mark.asyncio

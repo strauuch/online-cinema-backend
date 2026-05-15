@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from sqlalchemy import select
 
@@ -26,7 +27,7 @@ class UserFactory:
         await self._ensure_groups()
 
         if email is None:
-            email = f"test_{int(datetime.now().timestamp())}@example.com"
+            email = f"test_{uuid.uuid4().hex}@example.com"
 
         group_obj = await self.db.scalar(
             select(UserGroupModel).where(UserGroupModel.name == group)

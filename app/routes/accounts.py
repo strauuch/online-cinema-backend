@@ -841,6 +841,7 @@ async def update_profile(
     logger.info(f"User {current_user_id} initiated profile update")
 
     await db.refresh(current_user, ["profile"])
+    profile = current_user.profile
 
     if not profile:
         logger.info(f"Creating missing profile record for user {current_user_id}")

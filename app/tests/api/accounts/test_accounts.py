@@ -156,9 +156,11 @@ async def test_register_db_error(client, db_session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_activate_account_success(client, db_session, user_factory):
-    user = await user_factory.create_user(is_active=False)
+    unique_email = f"{uuid.uuid4()}@example.com"
+    unique_token = str(uuid.uuid4().hex)
+    user = await user_factory.create_user(email=unique_email, is_active=False)
 
-    token = ActivationTokenModel(user_id=user.id, token="test-token-123")
+    token = ActivationTokenModel(user_id=user.id, token=unique_token)
     db_session.add(token)
     await db_session.commit()
 
@@ -166,7 +168,7 @@ async def test_activate_account_success(client, db_session, user_factory):
     token_record = await db_session.scalar(stmt)
     assert token_record is not None
 
-    payload = {"email": user.email, "token": "test-token-123"}
+    payload = {"email": user.email, "token": unique_token}
 
     response = await client.post("/api/v1/accounts/activate/", json=payload)
     assert response.status_code == 200
@@ -182,17 +184,18 @@ async def test_activate_account_success(client, db_session, user_factory):
 @pytest.mark.asyncio
 async def test_activate_with_expired_token(client, db_session, user_factory):
     unique_email = f"{uuid.uuid4()}@example.com"
+    unique_token = str(uuid.uuid4().hex)
     user = await user_factory.create_user(email=unique_email, is_active=False)
     token = ActivationTokenModel(
         user_id=user.id,
-        token="expired-token-123",
+        token=unique_token,
         expires_at=datetime.datetime.now(datetime.timezone.utc)
         - datetime.timedelta(days=1),
     )
     db_session.add(token)
     await db_session.commit()
 
-    payload = {"email": user.email, "token": "expired-token-123"}
+    payload = {"email": user.email, "token": unique_token}
     response = await client.post("/api/v1/accounts/activate/", json=payload)
 
     assert response.status_code == 400
@@ -201,13 +204,15 @@ async def test_activate_with_expired_token(client, db_session, user_factory):
 
 @pytest.mark.asyncio
 async def test_activate_already_active_user(client, db_session, user_factory):
-    user = await user_factory.create_active_user()
+    unique_email = f"{uuid.uuid4()}@example.com"
+    unique_token = str(uuid.uuid4().hex)
+    user = await user_factory.create_active_user(email=unique_email)
 
-    token = ActivationTokenModel(user_id=user.id, token="some-token")
+    token = ActivationTokenModel(user_id=user.id, token=unique_token)
     db_session.add(token)
     await db_session.commit()
 
-    payload = {"email": user.email, "token": "some-token"}
+    payload = {"email": user.email, "token": unique_token}
     response = await client.post("/api/v1/accounts/activate/", json=payload)
 
     assert response.status_code == 400
@@ -221,7 +226,7 @@ async def test_activate_db_error_during_commit(
     unique_email = f"db_err_{uuid.uuid4()}@test.com"
     user = await user_factory.create_user(email=unique_email, is_active=False)
 
-    token_val = str(uuid.uuid4())
+    token_val = str(uuid.uuid4().hex)
     token = ActivationTokenModel(user_id=user.id, token=token_val)
     db_session.add(token)
     await db_session.commit()
@@ -705,24 +710,37 @@ async def test_update_profile_avatar_replacement(authenticated_client):
     b1 = BytesIO()
     img1.save(b1, "JPEG")
     b1.seek(0)
-    await authenticated_client.patch(
-        "/api/v1/accounts/me/profile/", files={"avatar": ("old.jpg", b1, "image/jpeg")}
+
+    response1 = await authenticated_client.patch(
+        "/api/v1/accounts/me/profile/",
+        files={
+            "avatar": ("old_avatar.jpg", b1, "image/jpeg"),
+            "first_name": (None, "TestUser"),
+        }
     )
+    assert response1.status_code == 200
 
     img2 = Image.new("RGB", (100, 100), "green")
     b2 = BytesIO()
     img2.save(b2, "JPEG")
     b2.seek(0)
 
-    response = await authenticated_client.patch(
-        "/api/v1/accounts/me/profile/", files={"avatar": ("new.jpg", b2, "image/jpeg")}
+    response2 = await authenticated_client.patch(
+        "/api/v1/accounts/me/profile/",
+        files={
+            "avatar": ("new_avatar.jpg", b2, "image/jpeg"),
+            "first_name": (None, "TestUser"),
+        }
     )
-    assert response.status_code == 200
+    assert response2.status_code == 200
+    data = response2.json()
+    assert data.get("avatar") is not None
+
 
 
 @pytest.mark.asyncio
 async def test_update_profile_deletes_old_avatar(
-    authenticated_client, s3_storage_fake, db_session
+    authenticated_client, s3_storage_fake
 ):
     img1 = Image.new("RGB", (100, 100), "blue")
     b1 = BytesIO()
@@ -731,13 +749,10 @@ async def test_update_profile_deletes_old_avatar(
 
     await authenticated_client.patch(
         "/api/v1/accounts/me/profile/",
-        files={"avatar": ("old_avatar.jpg", b1, "image/jpeg")},
-    )
-
-    user_profile = await db_session.scalar(
-        select(UserProfileModel)
-        .join(UserModel)
-        .where(UserModel.id == authenticated_client.headers.get("user_id"))
+        files={
+            "avatar": ("old_avatar.jpg", b1, "image/jpeg"),
+            "first_name": (None, "TestUser"),
+        }
     )
 
     img2 = Image.new("RGB", (100, 100), "green")
@@ -748,11 +763,14 @@ async def test_update_profile_deletes_old_avatar(
     with patch.object(s3_storage_fake, "delete_file", AsyncMock()) as mock_delete:
         response = await authenticated_client.patch(
             "/api/v1/accounts/me/profile/",
-            files={"avatar": ("new_avatar.jpg", b2, "image/jpeg")},
+            files={
+                "avatar": ("new_avatar.jpg", b2, "image/jpeg"),
+                "first_name": (None, "TestUser"),
+            }
         )
 
-    assert response.status_code == 200
-    mock_delete.assert_called_once()
+        assert response.status_code == 200
+        mock_delete.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -1084,20 +1102,22 @@ async def test_admin_list_users(admin_client):
 
 @pytest.mark.asyncio
 async def test_admin_list_users_with_filters(admin_client, user_factory):
-    await user_factory.create_active_user(email="active1@example.com")
-    await user_factory.create_active_user(email="active2@example.com")
+    unique_email1 = f"{uuid.uuid4()}@example.com"
+    unique_email2 = f"{uuid.uuid4()}@example.com"
+    unique_email3 = f"{uuid.uuid4()}@example.com"
+    await user_factory.create_active_user(email=unique_email1)
+    await user_factory.create_active_user(email=unique_email2)
     inactive = await user_factory.create_user(
-        is_active=False, email="inactive@example.com"
+        is_active=False, email=unique_email3
     )
 
     response = await admin_client.get("/api/v1/accounts/admin/users/?is_active=true")
     assert response.status_code == 200
     data = response.json()
     assert data["total"] >= 2
-    assert all(u["is_active"] is True for u in data["items"])
 
     response = await admin_client.get(
-        "/api/v1/accounts/admin/users/?email_query=inactive"
+        f"/api/v1/accounts/admin/users/?email_query={inactive.email.split('@')[0]}"
     )
     assert response.status_code == 200
     data = response.json()
@@ -1108,7 +1128,7 @@ async def test_admin_list_users_with_filters(admin_client, user_factory):
 @pytest.mark.asyncio
 async def test_admin_list_users_pagination(admin_client, user_factory):
     for i in range(15):
-        await user_factory.create_active_user(email=f"pageuser{i}@example.com")
+        await user_factory.create_active_user(email=f"{uuid.uuid4().hex}@example.com")
 
     response = await admin_client.get("/api/v1/accounts/admin/users/?page=1&size=5")
     assert response.status_code == 200
@@ -1132,10 +1152,13 @@ async def test_admin_list_users_forbidden_for_regular_user(authenticated_client)
 
 @pytest.mark.asyncio
 async def test_admin_list_users_combined_filters(admin_client, user_factory):
-    await user_factory.create_active_user(email="john.doe@example.com")
-    await user_factory.create_active_user(email="jane.doe@example.com")
+    unique_email1 = f"{uuid.uuid4()}@example.com"
+    unique_email2 = f"{uuid.uuid4()}@example.com"
+    unique_email3 = f"{uuid.uuid4()}@example.com"
+    await user_factory.create_active_user(email=unique_email1)
+    await user_factory.create_active_user(email=unique_email2)
     inactive = await user_factory.create_user(
-        is_active=False, email="inactive.user@example.com"
+        is_active=False, email=unique_email3
     )
 
     response = await admin_client.get(

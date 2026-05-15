@@ -518,7 +518,8 @@ async def test_refresh_user_not_found(client, db_session, user_factory, jwt_mana
 
 @pytest.mark.asyncio
 async def test_refresh_token_not_in_db(client, user_factory, jwt_manager):
-    user = await user_factory.create_active_user()
+    unique_email = f"{uuid.uuid4()}@test.com"
+    user = await user_factory.create_active_user(email=unique_email)
 
     refresh_token = jwt_manager.create_refresh_token({"user_id": user.id})
 
@@ -735,7 +736,6 @@ async def test_update_profile_avatar_replacement(authenticated_client):
     assert response2.status_code == 200
     data = response2.json()
     assert data.get("avatar") is not None
-
 
 
 @pytest.mark.asyncio

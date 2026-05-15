@@ -521,7 +521,7 @@ async def test_refresh_token_not_in_db(client, user_factory, jwt_manager):
     unique_email = f"{uuid.uuid4()}@test.com"
     user = await user_factory.create_active_user(email=unique_email)
 
-    refresh_token = jwt_manager.create_refresh_token({"user_id": user.id})
+    refresh_token = jwt_manager.create_refresh_token({"user_id": user.id, "salt": uuid.uuid4().hex})
 
     response = await client.post(
         "/api/v1/accounts/refresh/", json={"refresh_token": refresh_token}

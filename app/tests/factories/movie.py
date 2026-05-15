@@ -12,7 +12,7 @@ from app.database.models.movies import (
     MovieModel,
     movie_genres,
     movie_stars,
-    movie_directors,
+    movie_directors, MovieFavoriteModel, MovieVoteModel, MovieRatingModel, MovieCommentModel,
 )
 
 
@@ -135,3 +135,41 @@ class MovieFactory:
         await self.db.commit()
         await self.db.refresh(movie, ["genres", "stars", "directors", "certification"])
         return movie
+
+    async def create_comment(self, movie, user, text: str = None, parent_id=None):
+        comment = MovieCommentModel(
+            movie_id=movie.id,
+            user_id=user.id,
+            text=text or f"Test comment {uuid.uuid4().hex[:8]}",
+            parent_id=parent_id
+        )
+        self.db.add(comment)
+        await self.db.commit()
+        await self.db.refresh(comment)
+        return comment
+
+    async def create_rating(self, movie, user, score: int = 8):
+        rating = MovieRatingModel(
+            movie_id=movie.id,
+            user_id=user.id,
+            score=score
+        )
+        self.db.add(rating)
+        await self.db.commit()
+        return rating
+
+    async def create_vote(self, movie, user, is_like: bool = True):
+        vote = MovieVoteModel(
+            movie_id=movie.id,
+            user_id=user.id,
+            is_like=is_like
+        )
+        self.db.add(vote)
+        await self.db.commit()
+        return vote
+
+    async def create_favorite(self, movie, user):
+        fav = MovieFavoriteModel(user_id=user.id, movie_id=movie.id)
+        self.db.add(fav)
+        await self.db.commit()
+        return fav

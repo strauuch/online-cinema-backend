@@ -245,6 +245,15 @@ async def update_my_comment(
     try:
         await db.commit()
         await db.refresh(comment)
+
+        stmt = (
+            select(MovieCommentModel)
+            .options(joinedload(MovieCommentModel.user), selectinload(MovieCommentModel.likes))
+            .where(MovieCommentModel.id == comment_id)
+        )
+        result = await db.execute(stmt)
+        comment = result.scalars().first()
+
         logger.info(f"User {current_user_id} successfully updated comment {comment_id}")
     except SQLAlchemyError:
         await db.rollback()

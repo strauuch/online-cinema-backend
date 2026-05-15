@@ -18,6 +18,7 @@ from app.tests.factories.user import UserFactory
 from app.database.models.accounts import UserGroupModel
 from app.database.models.enums import UserGroupEnum
 from app.tests.factories.movie import MovieFactory
+from app.tests.factories.comment import CommentFactory
 
 TEST_DB_URL = "sqlite+aiosqlite:///./test_accounts.db"
 
@@ -34,14 +35,18 @@ def s3_storage_fake():
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_test_database():
+    # async with test_engine.begin() as conn:
+    #     await conn.run_sync(Base.metadata.create_all)
+    # yield
+    # async with test_engine.begin() as conn:
+    #     await conn.run_sync(Base.metadata.drop_all)
+    # await test_engine.dispose()
+    # if os.path.exists("test_accounts.db"):
+    #     os.remove("test_accounts.db")
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
     await test_engine.dispose()
-    if os.path.exists("test_accounts.db"):
-        os.remove("test_accounts.db")
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -94,7 +99,7 @@ async def authenticated_client(client, user_factory, jwt_manager):
     access_token = jwt_manager.create_access_token({"user_id": user.id})
 
     client.headers["Authorization"] = f"Bearer {access_token}"
-
+    client.user = user
     return client
 
 
@@ -105,9 +110,28 @@ async def admin_client(client, user_factory, jwt_manager):
 
     access_token = jwt_manager.create_access_token({"user_id": admin.id})
     client.headers["Authorization"] = f"Bearer {access_token}"
+    client.user = admin
     return client
 
 
 @pytest_asyncio.fixture
 async def movie_factory(db_session):
     return MovieFactory(db_session)
+
+
+@pytest_asyncio.fixture
+async def another_user(user_factory):
+    return await user_factory.create_active_user()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def authenticated_client2(client, user_factory, jwt_manager):
+    unique_email = f"user2_{uuid.uuid4()}@test.com"
+    user = await user_factory.create_active_user(email=unique_email)
+    access_token = jwt_manager.create_access_token({"user_id": user.id})
+    client.headers["Authorization"] = f"Bearer {access_token}"
+    return client
+
+@pytest_asyncio.fixture
+async def comment_factory(db_session):
+    return CommentFactory(db_session)

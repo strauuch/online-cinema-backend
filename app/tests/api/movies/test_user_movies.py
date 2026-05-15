@@ -21,7 +21,7 @@ BASE = "/api/v1/movies"
 
 
 # ==============================================================================
-# GET / — Browse and filter movie catalog
+# GET /
 # ==============================================================================
 
 
@@ -278,7 +278,7 @@ async def test_list_movies_empty_db_returns_zero_total(client):
 
 
 # ==============================================================================
-# GET /{movie_uuid}/ — Movie detail
+# GET /{movie_uuid}/
 # ==============================================================================
 
 
@@ -327,7 +327,7 @@ async def test_get_movie_detail_accessible_without_auth(client, movie_factory):
 
 
 # ==============================================================================
-# GET /genres/ — Genre list with movie counts
+# GET /genres/
 # ==============================================================================
 
 
@@ -389,7 +389,7 @@ async def test_list_genres_movie_count_is_non_negative(client, movie_factory):
 
 
 # ==============================================================================
-# GET /notifications/ — User notifications
+# GET /notifications/
 # ==============================================================================
 
 
@@ -468,7 +468,7 @@ async def test_get_notifications_response_shape(authenticated_client, db_session
 
 
 # ==============================================================================
-# PATCH /notifications/{notif_id}/read/ — Mark notification as read
+# PATCH /notifications/{notif_id}/read/
 # ==============================================================================
 
 
@@ -549,7 +549,7 @@ async def test_mark_notification_as_read_requires_auth(client, user_factory, db_
 
 
 # ==============================================================================
-# GET /{movie_uuid}/comments/ — List movie comments
+# GET /{movie_uuid}/comments/
 # ==============================================================================
 
 
@@ -631,7 +631,7 @@ async def test_list_comments_empty_movie(client, movie_factory):
 
 
 # ==============================================================================
-# POST /{movie_uuid}/comments/ — Add comment
+# POST /{movie_uuid}/comments/
 # ==============================================================================
 
 
@@ -734,7 +734,7 @@ async def test_add_comment_persisted_to_db(
 
 
 # ==============================================================================
-# PATCH /comments/{comment_id}/ — Update own comment
+# PATCH /comments/{comment_id}/
 # ==============================================================================
 
 
@@ -821,7 +821,7 @@ async def test_update_comment_validation_empty_text(
 
 
 # ==============================================================================
-# POST /comments/{comment_id}/like/ — Like / unlike a comment
+# POST /comments/{comment_id}/like/
 # ==============================================================================
 
 
@@ -923,7 +923,7 @@ async def test_like_own_comment_no_notification(
 
 
 # ==============================================================================
-# DELETE /comments/{comment_id}/ — Delete comment
+# DELETE /comments/{comment_id}/
 # ==============================================================================
 
 
@@ -1019,7 +1019,7 @@ async def test_delete_comment_requires_auth(client, movie_factory, comment_facto
 
 
 # ==============================================================================
-# POST /{movie_uuid}/favorite/ — Add to favorites
+# POST /{movie_uuid}/favorite/
 # ==============================================================================
 
 
@@ -1073,7 +1073,7 @@ async def test_add_favorite_requires_auth(client, movie_factory):
 
 
 # ==============================================================================
-# DELETE /{movie_uuid}/favorite/ — Remove from favorites
+# DELETE /{movie_uuid}/favorite/
 # ==============================================================================
 
 
@@ -1130,7 +1130,7 @@ async def test_remove_favorite_requires_auth(client, movie_factory):
 
 
 # ==============================================================================
-# POST /{movie_uuid}/rating/ — Rate a movie
+# POST /{movie_uuid}/rating/
 # ==============================================================================
 
 
@@ -1222,7 +1222,7 @@ async def test_rate_movie_requires_auth(client, movie_factory):
 
 
 # ==============================================================================
-# DELETE /{movie_uuid}/rating/ — Remove rating
+# DELETE /{movie_uuid}/rating/
 # ==============================================================================
 
 
@@ -1277,7 +1277,7 @@ async def test_remove_rating_requires_auth(client, movie_factory):
 
 
 # ==============================================================================
-# POST /{movie_uuid}/vote/ — Like or dislike a movie
+# POST /{movie_uuid}/vote/
 # ==============================================================================
 
 

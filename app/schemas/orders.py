@@ -10,6 +10,7 @@ class OrderItemOutSchema(BaseModel):
     movie_id: int
     price_at_order: Decimal = Field(default=Decimal("0.00"), examples=["49.00"])
 
+    model_config = ConfigDict(from_attributes=True)
 
 class OrderResponseSchema(BaseModel):
     id: int

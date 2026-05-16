@@ -306,7 +306,13 @@ async def cancel_order(
         order.status = OrderStatusEnum.CANCELED
 
         await db.commit()
-        await db.refresh(order)
+        stmt = (
+            select(OrderModel)
+            .where(OrderModel.id == order_id)
+            .options(selectinload(OrderModel.items))
+        )
+        result = await db.execute(stmt)
+        order = result.scalar_one_or_none()
 
         logger.info(
             f"Order {order_id} successfully cancelled by user {current_user_id}."
@@ -334,7 +340,7 @@ async def cancel_order(
 
 
 @router.get(
-    "/",
+    "/admin/orders/",
     response_model=Page[AdminOrderResponseSchema],
     summary="Get All Orders with Filters (Paginated) [Admin]",
 )

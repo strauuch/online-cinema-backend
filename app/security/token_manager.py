@@ -72,7 +72,7 @@ class JWTAuthManager(JWTAuthManagerInterface):
         except ExpiredSignatureError:
             logger.debug("Token expired signature")
             raise TokenExpiredError
-        except JWTError:
+        except JWTError as e:
             logger.error(f"JWT decode error: {str(e)}")
             raise InvalidTokenError
 

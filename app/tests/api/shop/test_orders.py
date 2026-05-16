@@ -36,7 +36,9 @@ async def add_movie_to_cart(db_session, cart: CartModel, movie) -> CartItemModel
     return item
 
 
-async def create_order_for_user(db_session, user_id: int, movie, status=OrderStatusEnum.PENDING) -> OrderModel:
+async def create_order_for_user(
+    db_session, user_id: int, movie, status=OrderStatusEnum.PENDING
+) -> OrderModel:
     order = OrderModel(
         user_id=user_id,
         status=status,
@@ -73,7 +75,9 @@ async def test_create_order_success(authenticated_client, db_session, movie_fact
 
 
 @pytest.mark.asyncio
-async def test_create_order_clears_cart(authenticated_client, db_session, movie_factory):
+async def test_create_order_clears_cart(
+    authenticated_client, db_session, movie_factory
+):
     cart = await get_or_create_cart(db_session, authenticated_client.user.id)
     movie = await movie_factory.create_movie()
     await add_movie_to_cart(db_session, cart, movie)
@@ -81,15 +85,21 @@ async def test_create_order_clears_cart(authenticated_client, db_session, movie_
     await authenticated_client.post(f"{BASE}/")
 
     items = (
-        await db_session.execute(
-            select(CartItemModel).where(CartItemModel.cart_id == cart.id)
+        (
+            await db_session.execute(
+                select(CartItemModel).where(CartItemModel.cart_id == cart.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert items == []
 
 
 @pytest.mark.asyncio
-async def test_create_order_persists_to_db(authenticated_client, db_session, movie_factory):
+async def test_create_order_persists_to_db(
+    authenticated_client, db_session, movie_factory
+):
     cart = await get_or_create_cart(db_session, authenticated_client.user.id)
     movie = await movie_factory.create_movie()
     await add_movie_to_cart(db_session, cart, movie)
@@ -103,7 +113,9 @@ async def test_create_order_persists_to_db(authenticated_client, db_session, mov
 
 
 @pytest.mark.asyncio
-async def test_create_order_snapshots_item_prices(authenticated_client, db_session, movie_factory):
+async def test_create_order_snapshots_item_prices(
+    authenticated_client, db_session, movie_factory
+):
     cart = await get_or_create_cart(db_session, authenticated_client.user.id)
     movie = await movie_factory.create_movie(price=Decimal("19.99"))
     await add_movie_to_cart(db_session, cart, movie)
@@ -129,7 +141,9 @@ async def test_create_order_empty_cart_returns_400(authenticated_client, db_sess
 
 
 @pytest.mark.asyncio
-async def test_create_order_multiple_items(authenticated_client, db_session, movie_factory):
+async def test_create_order_multiple_items(
+    authenticated_client, db_session, movie_factory
+):
     cart = await get_or_create_cart(db_session, authenticated_client.user.id)
     m1 = await movie_factory.create_movie(price=Decimal("5.00"))
     m2 = await movie_factory.create_movie(price=Decimal("10.00"))
@@ -150,7 +164,9 @@ async def test_create_order_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_create_order_db_error(authenticated_client, db_session, movie_factory, monkeypatch):
+async def test_create_order_db_error(
+    authenticated_client, db_session, movie_factory, monkeypatch
+):
     cart = await get_or_create_cart(db_session, authenticated_client.user.id)
     movie = await movie_factory.create_movie()
     await add_movie_to_cart(db_session, cart, movie)
@@ -171,7 +187,9 @@ async def test_create_order_db_error(authenticated_client, db_session, movie_fac
 
 
 @pytest.mark.asyncio
-async def test_get_order_history_success(authenticated_client, db_session, movie_factory):
+async def test_get_order_history_success(
+    authenticated_client, db_session, movie_factory
+):
     movie = await movie_factory.create_movie()
     await create_order_for_user(db_session, authenticated_client.user.id, movie)
 
@@ -195,7 +213,9 @@ async def test_get_order_history_empty(authenticated_client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_get_order_history_pagination(authenticated_client, db_session, movie_factory):
+async def test_get_order_history_pagination(
+    authenticated_client, db_session, movie_factory
+):
     movie = await movie_factory.create_movie()
     for _ in range(5):
         await create_order_for_user(db_session, authenticated_client.user.id, movie)
@@ -231,7 +251,9 @@ async def test_get_order_history_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_get_order_history_response_shape(authenticated_client, db_session, movie_factory):
+async def test_get_order_history_response_shape(
+    authenticated_client, db_session, movie_factory
+):
     movie = await movie_factory.create_movie()
     await create_order_for_user(db_session, authenticated_client.user.id, movie)
 
@@ -248,7 +270,9 @@ async def test_get_order_history_response_shape(authenticated_client, db_session
 
 
 @pytest.mark.asyncio
-async def test_get_order_details_success(authenticated_client, db_session, movie_factory):
+async def test_get_order_details_success(
+    authenticated_client, db_session, movie_factory
+):
     movie = await movie_factory.create_movie()
     order = await create_order_for_user(db_session, authenticated_client.user.id, movie)
 
@@ -283,7 +307,9 @@ async def test_get_order_details_other_user_order(
 
 
 @pytest.mark.asyncio
-async def test_get_order_details_requires_auth(client, db_session, movie_factory, user_factory):
+async def test_get_order_details_requires_auth(
+    client, db_session, movie_factory, user_factory
+):
     user = await user_factory.create_active_user()
     movie = await movie_factory.create_movie()
     order = await create_order_for_user(db_session, user.id, movie)
@@ -326,7 +352,9 @@ async def test_cancel_order_not_found(authenticated_client):
 
 
 @pytest.mark.asyncio
-async def test_cancel_order_already_paid(authenticated_client, db_session, movie_factory):
+async def test_cancel_order_already_paid(
+    authenticated_client, db_session, movie_factory
+):
     movie = await movie_factory.create_movie()
     order = await create_order_for_user(
         db_session, authenticated_client.user.id, movie, status=OrderStatusEnum.PAID
@@ -341,7 +369,9 @@ async def test_cancel_order_already_paid(authenticated_client, db_session, movie
 
 
 @pytest.mark.asyncio
-async def test_cancel_order_already_canceled(authenticated_client, db_session, movie_factory):
+async def test_cancel_order_already_canceled(
+    authenticated_client, db_session, movie_factory
+):
     movie = await movie_factory.create_movie()
     order = await create_order_for_user(
         db_session, authenticated_client.user.id, movie, status=OrderStatusEnum.CANCELED
@@ -370,7 +400,9 @@ async def test_cancel_order_other_user(
 
 
 @pytest.mark.asyncio
-async def test_cancel_order_requires_auth(client, db_session, movie_factory, user_factory):
+async def test_cancel_order_requires_auth(
+    client, db_session, movie_factory, user_factory
+):
     user = await user_factory.create_active_user()
     movie = await movie_factory.create_movie()
     order = await create_order_for_user(db_session, user.id, movie)
@@ -405,7 +437,9 @@ async def test_cancel_order_db_error(
 
 
 @pytest.mark.asyncio
-async def test_admin_get_all_orders_success(admin_client, db_session, movie_factory, user_factory):
+async def test_admin_get_all_orders_success(
+    admin_client, db_session, movie_factory, user_factory
+):
     user = await user_factory.create_active_user()
     movie = await movie_factory.create_movie()
     await create_order_for_user(db_session, user.id, movie)
@@ -440,7 +474,9 @@ async def test_admin_get_all_orders_filter_by_status(
     user = await user_factory.create_active_user()
     movie = await movie_factory.create_movie()
     await create_order_for_user(db_session, user.id, movie, status=OrderStatusEnum.PAID)
-    await create_order_for_user(db_session, user.id, movie, status=OrderStatusEnum.PENDING)
+    await create_order_for_user(
+        db_session, user.id, movie, status=OrderStatusEnum.PENDING
+    )
 
     response = await admin_client.get(f"{ADMIN_BASE}orders/?order_status=paid")
 

@@ -17,7 +17,6 @@ from app.database.validators.movies_validators import (
     validate_movie_duration,
 )
 
-
 # ==============================================================================
 # validate_password_strength
 # ==============================================================================
@@ -208,6 +207,7 @@ def test_movie_year_before_1895():
 
 def test_movie_year_too_far_future():
     from datetime import datetime
+
     too_far = datetime.now().year + 6
     with pytest.raises(ValueError):
         validate_movie_year(too_far)
@@ -215,6 +215,7 @@ def test_movie_year_too_far_future():
 
 def test_movie_year_max_boundary():
     from datetime import datetime
+
     max_year = datetime.now().year + 5
     assert validate_movie_year(max_year) == max_year
 

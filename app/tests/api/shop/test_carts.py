@@ -81,7 +81,9 @@ async def test_get_cart_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_get_cart_total_sums_all_items(authenticated_client, db_session, movie_factory):
+async def test_get_cart_total_sums_all_items(
+    authenticated_client, db_session, movie_factory
+):
     cart = await get_or_create_cart(db_session, authenticated_client.user.id)
     m1 = await movie_factory.create_movie(price=Decimal("5.00"))
     m2 = await movie_factory.create_movie(price=Decimal("7.50"))
@@ -175,9 +177,7 @@ async def test_add_to_cart_already_purchased(
     db_session.add(order)
     await db_session.flush()
     db_session.add(
-        OrderItemModel(
-            order_id=order.id, movie_id=movie.id, price_at_order=movie.price
-        )
+        OrderItemModel(order_id=order.id, movie_id=movie.id, price_at_order=movie.price)
     )
     await db_session.commit()
 
@@ -197,7 +197,9 @@ async def test_add_to_cart_requires_auth(client, movie_factory):
 
 
 @pytest.mark.asyncio
-async def test_add_to_cart_deleted_movie(authenticated_client, db_session, movie_factory):
+async def test_add_to_cart_deleted_movie(
+    authenticated_client, db_session, movie_factory
+):
     await get_or_create_cart(db_session, authenticated_client.user.id)
     movie = await movie_factory.create_movie()
     movie.is_deleted = True
@@ -209,7 +211,9 @@ async def test_add_to_cart_deleted_movie(authenticated_client, db_session, movie
 
 
 @pytest.mark.asyncio
-async def test_add_to_cart_db_error(authenticated_client, db_session, movie_factory, monkeypatch):
+async def test_add_to_cart_db_error(
+    authenticated_client, db_session, movie_factory, monkeypatch
+):
     await get_or_create_cart(db_session, authenticated_client.user.id)
     movie = await movie_factory.create_movie()
 
@@ -229,7 +233,9 @@ async def test_add_to_cart_db_error(authenticated_client, db_session, movie_fact
 
 
 @pytest.mark.asyncio
-async def test_remove_from_cart_success(authenticated_client, db_session, movie_factory):
+async def test_remove_from_cart_success(
+    authenticated_client, db_session, movie_factory
+):
     cart = await get_or_create_cart(db_session, authenticated_client.user.id)
     movie = await movie_factory.create_movie()
     db_session.add(CartItemModel(cart_id=cart.id, movie_id=movie.id))
@@ -250,7 +256,9 @@ async def test_remove_from_cart_success(authenticated_client, db_session, movie_
 
 
 @pytest.mark.asyncio
-async def test_remove_from_cart_not_in_cart(authenticated_client, db_session, movie_factory):
+async def test_remove_from_cart_not_in_cart(
+    authenticated_client, db_session, movie_factory
+):
     await get_or_create_cart(db_session, authenticated_client.user.id)
     movie = await movie_factory.create_movie()
 
@@ -308,10 +316,14 @@ async def test_clear_cart_success(authenticated_client, db_session, movie_factor
     assert "removed" in response.json()["message"].lower()
 
     items = (
-        await db_session.execute(
-            select(CartItemModel).where(CartItemModel.cart_id == cart.id)
+        (
+            await db_session.execute(
+                select(CartItemModel).where(CartItemModel.cart_id == cart.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert items == []
 
 
@@ -351,7 +363,9 @@ async def test_clear_cart_db_error(authenticated_client, db_session, monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_admin_get_user_cart_success(admin_client, db_session, user_factory, movie_factory):
+async def test_admin_get_user_cart_success(
+    admin_client, db_session, user_factory, movie_factory
+):
     user = await user_factory.create_active_user()
     cart = await get_or_create_cart(db_session, user.id)
     movie = await movie_factory.create_movie()

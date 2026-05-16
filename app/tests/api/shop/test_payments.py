@@ -21,7 +21,9 @@ BASE = "/api/v1/payment"
 # ==============================================================================
 
 
-async def create_order(db_session, user_id: int, movie, status=OrderStatusEnum.PENDING) -> OrderModel:
+async def create_order(
+    db_session, user_id: int, movie, status=OrderStatusEnum.PENDING
+) -> OrderModel:
     order = OrderModel(user_id=user_id, status=status, total_amount=movie.price)
     db_session.add(order)
     await db_session.flush()
@@ -60,7 +62,12 @@ async def create_payment(db_session, user_id: int, order: OrderModel) -> Payment
     return payment
 
 
-def build_stripe_webhook_payload(event_type: str, order_id: int, amount_cents: int, session_id: str = "cs_test_abc123") -> dict:
+def build_stripe_webhook_payload(
+    event_type: str,
+    order_id: int,
+    amount_cents: int,
+    session_id: str = "cs_test_abc123",
+) -> dict:
     return {
         "type": event_type,
         "data": {
@@ -80,7 +87,9 @@ def build_stripe_webhook_payload(event_type: str, order_id: int, amount_cents: i
 
 
 @pytest.mark.asyncio
-async def test_create_payment_session_success(authenticated_client, db_session, movie_factory):
+async def test_create_payment_session_success(
+    authenticated_client, db_session, movie_factory
+):
     movie = await movie_factory.create_movie(price=Decimal("9.99"))
     order = await create_order(db_session, authenticated_client.user.id, movie)
 
@@ -157,7 +166,9 @@ async def test_create_payment_session_stripe_error(
 
 
 @pytest.mark.asyncio
-async def test_create_payment_session_requires_auth(client, db_session, movie_factory, user_factory):
+async def test_create_payment_session_requires_auth(
+    client, db_session, movie_factory, user_factory
+):
     user = await user_factory.create_active_user()
     movie = await movie_factory.create_movie()
     order = await create_order(db_session, user.id, movie)
@@ -173,7 +184,9 @@ async def test_create_payment_session_requires_auth(client, db_session, movie_fa
 
 
 @pytest.mark.asyncio
-async def test_get_payment_history_success(authenticated_client, db_session, movie_factory):
+async def test_get_payment_history_success(
+    authenticated_client, db_session, movie_factory
+):
     movie = await movie_factory.create_movie()
     order = await create_order(
         db_session, authenticated_client.user.id, movie, status=OrderStatusEnum.PAID
@@ -199,7 +212,9 @@ async def test_get_payment_history_empty(authenticated_client):
 
 
 @pytest.mark.asyncio
-async def test_get_payment_history_pagination(authenticated_client, db_session, movie_factory):
+async def test_get_payment_history_pagination(
+    authenticated_client, db_session, movie_factory
+):
     movie = await movie_factory.create_movie()
     for _ in range(5):
         order = await create_order(
@@ -221,7 +236,9 @@ async def test_get_payment_history_only_own(
 ):
     other_user = await user_factory.create_active_user()
     movie = await movie_factory.create_movie()
-    order = await create_order(db_session, other_user.id, movie, status=OrderStatusEnum.PAID)
+    order = await create_order(
+        db_session, other_user.id, movie, status=OrderStatusEnum.PAID
+    )
     await create_payment(db_session, other_user.id, order)
 
     response = await authenticated_client.get(f"{BASE}/history")
@@ -231,7 +248,9 @@ async def test_get_payment_history_only_own(
 
 
 @pytest.mark.asyncio
-async def test_get_payment_history_response_shape(authenticated_client, db_session, movie_factory):
+async def test_get_payment_history_response_shape(
+    authenticated_client, db_session, movie_factory
+):
     movie = await movie_factory.create_movie()
     order = await create_order(
         db_session, authenticated_client.user.id, movie, status=OrderStatusEnum.PAID
@@ -303,7 +322,9 @@ async def test_admin_get_all_payments_filter_by_status(
 
     assert response.status_code == 200
     data = response.json()
-    assert all(item["status"] == PaymentStatusEnum.SUCCESSFUL.value for item in data["items"])
+    assert all(
+        item["status"] == PaymentStatusEnum.SUCCESSFUL.value for item in data["items"]
+    )
 
 
 @pytest.mark.asyncio
@@ -330,7 +351,9 @@ async def test_admin_get_all_payments_pagination(
     user = await user_factory.create_active_user()
     movie = await movie_factory.create_movie()
     for _ in range(5):
-        order = await create_order(db_session, user.id, movie, status=OrderStatusEnum.PAID)
+        order = await create_order(
+            db_session, user.id, movie, status=OrderStatusEnum.PAID
+        )
         await create_payment(db_session, user.id, order)
 
     response = await admin_client.get(f"{BASE}/admin/payments/?page=1&size=3")
@@ -358,7 +381,9 @@ async def test_admin_get_all_payments_forbidden_regular_user(authenticated_clien
 # ==============================================================================
 
 
-def make_stripe_event(event_type: str, order_id: int, amount_cents: int, session_id: str = "cs_test_abc") -> dict:
+def make_stripe_event(
+    event_type: str, order_id: int, amount_cents: int, session_id: str = "cs_test_abc"
+) -> dict:
     return {
         "type": event_type,
         "data": {
@@ -389,7 +414,10 @@ async def test_webhook_checkout_completed_finalizes_order(
             response = await client.post(
                 f"{BASE}/webhook",
                 content=json.dumps(event),
-                headers={"stripe-signature": "test_sig", "content-type": "application/json"},
+                headers={
+                    "stripe-signature": "test_sig",
+                    "content-type": "application/json",
+                },
             )
 
     assert response.status_code == 200
@@ -415,7 +443,10 @@ async def test_webhook_payment_failed_cancels_order(
         response = await client.post(
             f"{BASE}/webhook",
             content=json.dumps(event),
-            headers={"stripe-signature": "test_sig", "content-type": "application/json"},
+            headers={
+                "stripe-signature": "test_sig",
+                "content-type": "application/json",
+            },
         )
 
     assert response.status_code == 200
@@ -430,7 +461,9 @@ async def test_webhook_invalid_signature_returns_400(client):
 
     with patch(
         "stripe.Webhook.construct_event",
-        side_effect=stripe_module.error.SignatureVerificationError("Bad sig", "sig_header"),
+        side_effect=stripe_module.error.SignatureVerificationError(
+            "Bad sig", "sig_header"
+        ),
     ):
         response = await client.post(
             f"{BASE}/webhook",
@@ -465,7 +498,10 @@ async def test_webhook_unknown_event_type_returns_200(client):
         response = await client.post(
             f"{BASE}/webhook",
             content=json.dumps(event),
-            headers={"stripe-signature": "test_sig", "content-type": "application/json"},
+            headers={
+                "stripe-signature": "test_sig",
+                "content-type": "application/json",
+            },
         )
 
     assert response.status_code == 200
@@ -482,7 +518,9 @@ async def test_webhook_completed_amount_mismatch_does_not_pay(
     order = await create_order(db_session, user.id, movie)
 
     wrong_amount_cents = 1  # clearly wrong
-    event = make_stripe_event("checkout.session.completed", order.id, wrong_amount_cents)
+    event = make_stripe_event(
+        "checkout.session.completed", order.id, wrong_amount_cents
+    )
 
     with patch("stripe.Webhook.construct_event", return_value=event):
         with patch("app.routes.payments.send_payment_confirmation_task") as mock_task:
@@ -490,7 +528,10 @@ async def test_webhook_completed_amount_mismatch_does_not_pay(
             response = await client.post(
                 f"{BASE}/webhook",
                 content=json.dumps(event),
-                headers={"stripe-signature": "test_sig", "content-type": "application/json"},
+                headers={
+                    "stripe-signature": "test_sig",
+                    "content-type": "application/json",
+                },
             )
 
     assert response.status_code == 200
@@ -516,7 +557,10 @@ async def test_webhook_completed_already_paid_order_is_skipped(
             response = await client.post(
                 f"{BASE}/webhook",
                 content=json.dumps(event),
-                headers={"stripe-signature": "test_sig", "content-type": "application/json"},
+                headers={
+                    "stripe-signature": "test_sig",
+                    "content-type": "application/json",
+                },
             )
 
     assert response.status_code == 200

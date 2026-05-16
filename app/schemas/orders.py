@@ -12,6 +12,7 @@ class OrderItemOutSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class OrderResponseSchema(BaseModel):
     id: int
     status: OrderStatusEnum

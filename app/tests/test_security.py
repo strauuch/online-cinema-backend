@@ -6,7 +6,6 @@ from app.security.utils import generate_secure_token
 from app.security.token_manager import JWTAuthManager
 from app.exceptions.security import TokenExpiredError, InvalidTokenError
 
-
 # ==============================================================================
 # Fixtures
 # ==============================================================================
@@ -220,6 +219,8 @@ def test_access_and_refresh_tokens_are_different(manager):
 
 def test_custom_expiry_is_respected(manager):
     # token with 1-hour delta should decode fine
-    token = manager.create_access_token({"user_id": 5}, expires_delta=timedelta(hours=1))
+    token = manager.create_access_token(
+        {"user_id": 5}, expires_delta=timedelta(hours=1)
+    )
     payload = manager.decode_access_token(token)
     assert payload["user_id"] == 5

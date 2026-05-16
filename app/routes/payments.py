@@ -1,7 +1,7 @@
 import logging
 import stripe
 
-from datetime import date
+from datetime import date, datetime, time
 from typing import Optional
 from fastapi import APIRouter, Depends, status, HTTPException, Request, Query
 from sqlalchemy import select, func, and_, cast, Date
@@ -211,6 +211,8 @@ async def create_payment_session(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail="Payment provider error"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             f"Internal error creating session for order {order_id}: {e}", exc_info=True
@@ -296,9 +298,11 @@ async def admin_get_all_payments(
         if status_filter:
             filters.append(PaymentModel.status == status_filter)
         if date_from:
-            filters.append(cast(PaymentModel.created_at, Date) >= date_from)
+            dt_from = datetime.combine(date_from, time.min)
+            filters.append(PaymentModel.created_at >= dt_from)
         if date_to:
-            filters.append(cast(PaymentModel.created_at, Date) <= date_to)
+            dt_to = datetime.combine(date_to, time.max)
+            filters.append(PaymentModel.created_at <= dt_to)
 
         if filters:
             query = query.where(and_(*filters))

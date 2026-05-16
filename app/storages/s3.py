@@ -9,8 +9,8 @@ from botocore.exceptions import (
     ConnectionError,
 )
 
-from exceptions.storage import S3ConnectionError, S3FileUploadError, S3DeleteError
-from storages.interfaces import S3StorageInterface
+from app.exceptions.storage import S3ConnectionError, S3FileUploadError, S3DeleteError
+from app.storages.interfaces import S3StorageInterface
 
 logger = logging.getLogger(__name__)
 

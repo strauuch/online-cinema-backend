@@ -2,10 +2,10 @@ import logging
 
 from sqlalchemy import select
 
-from database.models import accounts, carts, movies, orders, payments
-from database.models.accounts import UserModel, UserGroupModel
-from database.models.enums import UserGroupEnum
-from scripts.base import BaseCommand
+from app.database.models import accounts, carts, movies, orders, payments
+from app.database.models.accounts import UserModel, UserGroupModel
+from app.database.models.enums import UserGroupEnum
+from app.scripts.base import BaseCommand
 
 logger = logging.getLogger(__name__)
 

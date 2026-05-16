@@ -1,23 +1,23 @@
 import logging
 import stripe
 
-from datetime import date
+from datetime import date, datetime, time
 from typing import Optional
 from fastapi import APIRouter, Depends, status, HTTPException, Request, Query
 from sqlalchemy import select, func, and_, cast, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.dependencies import get_current_user, get_current_admin_user
-from database import get_db
-from database.models.accounts import UserModel
-from database.models.enums import OrderStatusEnum, PaymentStatusEnum
-from database.models.orders import OrderModel, OrderItemModel
-from database.models.payments import PaymentModel, PaymentItemModel
-from core.config import settings
-from schemas.pagination import Page
-from schemas.payments import PaymentResponseSchema, AdminPaymentResponseSchema
-from worker.tasks import send_payment_confirmation_task
+from app.core.dependencies import get_current_user, get_current_admin_user
+from app.database import get_db
+from app.database.models.accounts import UserModel
+from app.database.models.enums import OrderStatusEnum, PaymentStatusEnum
+from app.database.models.orders import OrderModel, OrderItemModel
+from app.database.models.payments import PaymentModel, PaymentItemModel
+from app.core.config import settings
+from app.schemas.pagination import Page
+from app.schemas.payments import PaymentResponseSchema, AdminPaymentResponseSchema
+from app.worker.tasks import send_payment_confirmation_task
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -211,6 +211,8 @@ async def create_payment_session(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail="Payment provider error"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             f"Internal error creating session for order {order_id}: {e}", exc_info=True
@@ -296,9 +298,11 @@ async def admin_get_all_payments(
         if status_filter:
             filters.append(PaymentModel.status == status_filter)
         if date_from:
-            filters.append(cast(PaymentModel.created_at, Date) >= date_from)
+            dt_from = datetime.combine(date_from, time.min)
+            filters.append(PaymentModel.created_at >= dt_from)
         if date_to:
-            filters.append(cast(PaymentModel.created_at, Date) <= date_to)
+            dt_to = datetime.combine(date_to, time.max)
+            filters.append(PaymentModel.created_at <= dt_to)
 
         if filters:
             query = query.where(and_(*filters))

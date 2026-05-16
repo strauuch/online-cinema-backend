@@ -8,19 +8,19 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import get_db
-from database.models.accounts import UserModel
-from database.models.carts import CartModel, CartItemModel
-from database.models.enums import OrderStatusEnum
-from database.models.movies import MovieModel
-from database.models.orders import OrderItemModel, OrderModel
-from schemas.carts import (
+from app.database import get_db
+from app.database.models.accounts import UserModel
+from app.database.models.carts import CartModel, CartItemModel
+from app.database.models.enums import OrderStatusEnum
+from app.database.models.movies import MovieModel
+from app.database.models.orders import OrderItemModel, OrderModel
+from app.schemas.carts import (
     CartResponseSchema,
     CartItemAddedSchema,
     CartItemRemovedSchema,
     CartClearSchema,
 )
-from core.dependencies import get_current_user, get_current_admin_user
+from app.core.dependencies import get_current_user, get_current_admin_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

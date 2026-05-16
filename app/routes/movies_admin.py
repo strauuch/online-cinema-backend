@@ -7,21 +7,21 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from core.dependencies import (
+from app.core.dependencies import (
     get_current_staff_user,
 )
-from database import get_db
-from database.models.accounts import UserModel
-from database.models.enums import OrderStatusEnum
-from database.models.movies import (
+from app.database import get_db
+from app.database.models.accounts import UserModel
+from app.database.models.enums import OrderStatusEnum
+from app.database.models.movies import (
     MovieModel,
     GenreModel,
     StarModel,
     DirectorModel,
     CertificationModel,
 )
-from database.models.orders import OrderItemModel, OrderModel
-from schemas.movies import (
+from app.database.models.orders import OrderItemModel, OrderModel
+from app.schemas.movies import (
     MovieDetailResponseSchema,
     MovieCreateSchema,
     MovieUpdateSchema,
@@ -39,7 +39,7 @@ from schemas.movies import (
     CertificationUpdateSchema,
     MovieDeletedShortResponseSchema,
 )
-from schemas.pagination import Page
+from app.schemas.pagination import Page
 
 router = APIRouter(dependencies=[Depends(get_current_staff_user)])
 
@@ -284,6 +284,16 @@ async def create_star(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="This star already exists."
         )
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            f"Unexpected error during star creation by user {current_user_id}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal error occurred.",
+        )
     return new_star
 
 
@@ -468,6 +478,16 @@ async def create_director(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This director already exists in the database.",
         )
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            f"Unexpected error during director creation by user {current_user_id}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal error occurred.",
+        )
     return new_director
 
 
@@ -650,7 +670,7 @@ async def create_certification(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Certification with this name already exists.",
         )
-    except SQLAlchemyError as e:
+    except Exception as e:
         await db.rollback()
         logger.error(
             f"Database error during certification creation: {str(e)}", exc_info=True
@@ -837,6 +857,24 @@ async def create_movie(
             detail="One or more genre IDs are invalid.",
         )
 
+    if len(stars) != len(movie_data.star_ids):
+        logger.warning(
+            f"Creation failed: User {current_user_id} provided invalid star IDs"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more star IDs are invalid.",
+        )
+
+    if len(directors) != len(movie_data.director_ids):
+        logger.warning(
+            f"Creation failed: User {current_user_id} provided invalid director IDs"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more director IDs are invalid.",
+        )
+
     movie_fields = movie_data.model_dump(
         exclude={"genre_ids", "star_ids", "director_ids"}
     )
@@ -876,7 +914,7 @@ async def create_movie(
 
 
 @router.get(
-    "/admin/deleted/",
+    "/deleted/",
     response_model=Page[MovieDeletedShortResponseSchema],
     status_code=status.HTTP_200_OK,
     summary="List soft-deleted movies [Moderator | Admin]",

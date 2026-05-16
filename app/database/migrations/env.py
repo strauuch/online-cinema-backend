@@ -10,14 +10,14 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from database.models import accounts  # noqa: F401
-from database.models import carts  # noqa: F401
-from database.models import enums  # noqa: F401
-from database.models import movies  # noqa: F401
-from database.models import orders  # noqa: F401
-from database.models import payments  # noqa: F401
-from database.models.base import Base
-from database.engine import sync_postgresql_engine
+from app.database.models import accounts  # noqa: F401
+from app.database.models import carts  # noqa: F401
+from app.database.models import enums  # noqa: F401
+from app.database.models import movies  # noqa: F401
+from app.database.models import orders  # noqa: F401
+from app.database.models import payments  # noqa: F401
+from app.database.models.base import Base
+from app.database.engine import sync_postgresql_engine
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -3,12 +3,14 @@ from decimal import Decimal
 from datetime import datetime
 from typing import List
 
-from database.models.enums import OrderStatusEnum
+from app.database.models.enums import OrderStatusEnum
 
 
 class OrderItemOutSchema(BaseModel):
     movie_id: int
     price_at_order: Decimal = Field(default=Decimal("0.00"), examples=["49.00"])
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OrderResponseSchema(BaseModel):

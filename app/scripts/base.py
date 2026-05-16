@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from database.engine import AsyncPostgresqlSessionLocal
+from app.database.engine import AsyncPostgresqlSessionLocal
 
 
 class BaseCommand(ABC):

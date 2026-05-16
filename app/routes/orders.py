@@ -10,23 +10,23 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.dependencies import (
+from app.core.dependencies import (
     get_current_user,
     get_current_admin_user,
 )
-from database import get_db
-from database.models.accounts import (
+from app.database import get_db
+from app.database.models.accounts import (
     UserModel,
 )
-from database.models.carts import CartModel, CartItemModel
-from database.models.enums import OrderStatusEnum
-from database.models.orders import OrderModel, OrderItemModel
-from schemas.orders import (
+from app.database.models.carts import CartModel, CartItemModel
+from app.database.models.enums import OrderStatusEnum
+from app.database.models.orders import OrderModel, OrderItemModel
+from app.schemas.orders import (
     OrderResponseSchema,
     OrderListResponseSchema,
     AdminOrderResponseSchema,
 )
-from schemas.pagination import Page
+from app.schemas.pagination import Page
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -306,7 +306,13 @@ async def cancel_order(
         order.status = OrderStatusEnum.CANCELED
 
         await db.commit()
-        await db.refresh(order)
+        stmt = (
+            select(OrderModel)
+            .where(OrderModel.id == order_id)
+            .options(selectinload(OrderModel.items))
+        )
+        result = await db.execute(stmt)
+        order = result.scalar_one_or_none()
 
         logger.info(
             f"Order {order_id} successfully cancelled by user {current_user_id}."
@@ -334,7 +340,7 @@ async def cancel_order(
 
 
 @router.get(
-    "/",
+    "/admin/orders/",
     response_model=Page[AdminOrderResponseSchema],
     summary="Get All Orders with Filters (Paginated) [Admin]",
 )

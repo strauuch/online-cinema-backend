@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING, List
 from sqlalchemy import ForeignKey, DateTime, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from database import Base
+
+from app.database import Base
 
 if TYPE_CHECKING:
     from database.models.accounts import UserModel

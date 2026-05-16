@@ -38,7 +38,7 @@ services:
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app/app
+      - PYTHONPATH=/app
     ports:
       - "8000:8000"
     volumes:

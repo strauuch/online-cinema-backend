@@ -5,7 +5,7 @@ import email_validator
 from datetime import date
 from fastapi import UploadFile
 
-from database.models.accounts import GenderEnum
+from app.database.models.accounts import GenderEnum
 
 logger = logging.getLogger(__name__)
 

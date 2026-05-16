@@ -4,8 +4,8 @@ from datetime import date
 from fastapi import UploadFile, Form, File
 from pydantic import BaseModel, field_validator, ConfigDict, EmailStr, AliasPath, Field
 
-from database.models.accounts import GenderEnum, UserGroupEnum
-from database.validators import accounts_validators as validators
+from app.database.models.accounts import GenderEnum, UserGroupEnum
+from app.database.validators import accounts_validators as validators
 
 logger = logging.getLogger(__name__)
 

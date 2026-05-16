@@ -7,15 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 
-from database.models.accounts import UserModel, UserGroupEnum
-from database.models.movies import MovieRatingModel, MovieModel
-from exceptions.security import TokenExpiredError, InvalidTokenError
-from notifications import EmailSenderInterface, EmailSender
-from security.interfaces import JWTAuthManagerInterface
-from security.token_manager import JWTAuthManager
-from storages.s3 import S3StorageInterface, S3StorageClient
-from core.config import settings
-from database import get_db
+from app.database.models.accounts import UserModel, UserGroupEnum
+from app.database.models.movies import MovieRatingModel, MovieModel
+from app.exceptions.security import TokenExpiredError, InvalidTokenError
+from app.notifications import EmailSenderInterface, EmailSender
+from app.security.interfaces import JWTAuthManagerInterface
+from app.security.token_manager import JWTAuthManager
+from app.storages.s3 import S3StorageInterface, S3StorageClient
+from app.core.config import settings
+from app.database import get_db
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/v1/accounts/login/", auto_error=False
@@ -114,7 +114,7 @@ async def get_current_user(
     stmt = (
         select(UserModel)
         .where(UserModel.id == user_id)
-        .options(joinedload(UserModel.group))
+        .options(joinedload(UserModel.group), joinedload(UserModel.profile))
     )
     user = await db.scalar(stmt)
 

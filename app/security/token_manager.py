@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import jwt, JWTError, ExpiredSignatureError
 
-from exceptions.security import TokenExpiredError, InvalidTokenError
-from security.interfaces import JWTAuthManagerInterface
+from app.exceptions.security import TokenExpiredError, InvalidTokenError
+from app.security.interfaces import JWTAuthManagerInterface
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class JWTAuthManager(JWTAuthManagerInterface):
         except ExpiredSignatureError:
             logger.debug("Token expired signature")
             raise TokenExpiredError
-        except JWTError:
+        except JWTError as e:
             logger.error(f"JWT decode error: {str(e)}")
             raise InvalidTokenError
 

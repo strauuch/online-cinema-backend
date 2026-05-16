@@ -6,13 +6,13 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import delete
 
-from core.config import settings
-from database.models.enums import OrderStatusEnum, PaymentStatusEnum
-from notifications import EmailSender
-from worker.celery_app import celery_app
-from database.engine import sync_postgresql_engine
-from database.models import accounts, movies, carts, orders, payments
-from database.models.accounts import (
+from app.core.config import settings
+from app.database.models.enums import OrderStatusEnum, PaymentStatusEnum
+from app.notifications import EmailSender
+from app.worker.celery_app import celery_app
+from app.database.engine import sync_postgresql_engine
+from app.database.models import accounts, movies, carts, orders, payments
+from app.database.models.accounts import (
     ActivationTokenModel,
     PasswordResetTokenModel,
     RefreshTokenModel,

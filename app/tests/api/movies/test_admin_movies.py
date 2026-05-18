@@ -357,7 +357,7 @@ async def test_update_star_duplicate_name(admin_client, movie_factory, db_sessio
 
     response = await admin_client.patch(
         f"/api/v1/admin/movies/stars/{star_to_update.id}/",
-        json={"name": "Existing Star"},
+        json={"name": unique_existing_name},
     )
 
     assert response.status_code == 400
@@ -1444,7 +1444,6 @@ async def test_create_movie_internal_error_flush(
 async def test_list_deleted_movies_success(admin_client, movie_factory, db_session):
     unique_name = f"Movie_{uuid.uuid4().hex[:8]}"
     unique_name1 = f"Movie_{uuid.uuid4().hex[:8]}"
-    movie = await movie_factory.create_movie(name=unique_name)
     deleted_movie = await movie_factory.create_movie(name=unique_name1)
 
     deleted_movie.is_deleted = True
@@ -1573,7 +1572,6 @@ async def test_update_movie_relationships(admin_client, movie_factory, db_sessio
     movie = await movie_factory.create_movie()
 
     new_genre = await movie_factory.create_genre(unique_genre)
-    new_star = await movie_factory.create_genre(unique_star)
     star = await db_session.scalar(select(StarModel).limit(1))
     director = await db_session.scalar(select(DirectorModel).limit(1))
     new_genre2 = await movie_factory.create_genre(unique_genre1)

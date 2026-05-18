@@ -366,7 +366,8 @@ async def delete_comment(
     * **Staff (Admin/Moderator)**: Can delete any comment.
 
     **Side Effects:**
-    If a staff member deletes a user's comment, the user will receive a **system notification** about the moderation action.
+    If a staff member deletes a user's comment,
+    the user will receive a **system notification** about the moderation action.
     """
     current_user_id = current_user.id
     logger.debug(f"User {current_user_id} initiated deletion of comment {comment_id}")
@@ -456,8 +457,10 @@ async def list_movies(
     Provides a paginated list of movies with multi-criteria filtering and full-text search.
 
     **Search & Filtering Logic:**
-    * **Full-text Search (`q`)**: Performs a case-insensitive search across movie titles, descriptions, and the names of actors (stars) and directors.
-    * **Favorites**: When `only_favorites` is true, returns only movies from the user's personal list. Requires an authorization token.
+    * **Full-text Search (`q`)**:
+    Performs a case-insensitive search across movie titles, descriptions and the names of actors (stars) and directors.
+    * **Favorites**:
+    When `only_favorites` is true, returns only movies from the user's personal list. Requires an authorization token.
     * **Categorization**: Filter by release year, genre, or set a minimum IMDb score threshold.
 
     **Ordering:**
@@ -681,7 +684,6 @@ async def add_comment(
     an automatic system notification.
     """
     current_user_id = current_user.id
-    current_user_email = current_user.email
     logger.info(f"User {current_user_id} is adding a comment to movie {movie_uuid}")
 
     movie_id = await get_movie_id_by_uuid(movie_uuid, db)

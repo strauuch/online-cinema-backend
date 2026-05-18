@@ -72,10 +72,10 @@ async def create_genre(
         logger.info(
             f"Genre '{new_genre.name}' (ID: {new_genre.id}) successfully created by user {current_user_id}"
         )
-    except IntegrityError as e:
+    except IntegrityError:
         await db.rollback()
         logger.warning(
-            f"Genre creation failed: Name '{genre_data.name}' already exists. (User: {current_user_id})"
+            f"Genre creation failed: Name '{genre_data.name}' already exists. (User: {current_user_id})."
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -529,7 +529,8 @@ async def update_director(
     except IntegrityError:
         await db.rollback()
         logger.warning(
-            f"Conflict: Name '{director_data.name}' already exists (Update aborted for ID {director_id}) by user {current_user_id}"
+            f"Conflict: Name '{director_data.name}' already exists: "
+            f"(Update aborted for ID {director_id}) by user {current_user_id}"
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -821,7 +822,7 @@ async def create_movie(
     Creates a new movie record and validates all related entity IDs.
 
     **Validation Logic:**
-    * **IDs Check**: Verifies that `certification_id`, `genre_ids`, `star_ids`, and `director_ids` exist in the database.
+    * **IDs Check**: Verifies that `certification_id`, `genre_ids`, `star_ids` and `director_ids` exist in the database.
     * **Unique Constraint**: Prevents creation of a movie with the same name, year, and duration.
     * **Relationships**: Automatically links the movie to provided genres, actors, and directors.
     """

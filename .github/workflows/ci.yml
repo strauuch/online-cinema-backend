@@ -1,0 +1,116 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry install
+
+      - name: Run black
+        run: poetry run black --check .
+
+      - name: Run flake8
+        run: poetry run flake8 .
+
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres_cinema:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: super_cinema_pass_2026
+          POSTGRES_DB: movies_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U admin -d movies_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PYTHONPATH: .
+
+      ACTIVATION_EMAIL_TEMPLATE_NAME: activation_request.html
+      ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME: activation_complete.html
+      PASSWORD_RESET_TEMPLATE_NAME: password_reset_request.html
+      PASSWORD_RESET_COMPLETE_TEMPLATE_NAME: password_reset_complete.html
+
+      EMAIL_HOST: localhost
+      EMAIL_PORT: 1025
+      EMAIL_HOST_USER: testuser
+      EMAIL_HOST_PASSWORD: test_password
+      EMAIL_USE_TLS: "false"
+      MAILHOG_API_PORT: 8025
+
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: some_password
+      MINIO_HOST: localhost
+      MINIO_PORT: 9000
+      MINIO_STORAGE: theater-storage
+
+      POSTGRES_DB: movies_db
+      POSTGRES_DB_PORT: 5432
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: super_cinema_pass_2026
+      POSTGRES_HOST: localhost
+
+      SECRET_KEY_ACCESS: ci-test-access-secret
+      SECRET_KEY_REFRESH: ci-test-refresh-secret
+      JWT_SIGNING_ALGORITHM: HS256
+
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_RESULT_BACKEND: redis://localhost:6379/0
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+      STRIPE_PUBLIC_KEY: ${{ secrets.STRIPE_TEST_PUBLIC_KEY }}
+      STRIPE_CURRENCY: eur
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_TEST_WEBHOOK_SECRET }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry install
+
+      - name: Run tests
+        run: poetry run pytest

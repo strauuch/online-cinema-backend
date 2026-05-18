@@ -168,7 +168,7 @@ async def register_user(
     status_code=status.HTTP_200_OK,
     responses={
         400: {
-            "description": "Bad Request - The activation token is invalid or expired or the user account is already active.",
+            "description": "The activation token is invalid or expired or the user account is already active.",
         },
     },
 )
@@ -231,13 +231,13 @@ async def activate_account(
         await db.flush()
     except SQLAlchemyError as e:
         await db.rollback()
-        logger.error("Failed to activate user")
+        logger.error(f"Failed to activate user. Error: {e}")
         raise HTTPException(
             status_code=500, detail="An error occurred during account activation."
         )
 
     logger.info(
-        f"User {user.id} successfully activated their account and profile created. Enqueued welcome email for {activation_data.email}"
+        f"User {user.id} successfully activated their account. Enqueued welcome email for {activation_data.email}"
     )
 
     background_tasks.add_task(
@@ -397,7 +397,8 @@ async def request_password_reset_token(
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
-    Allows a user to request a password reset token. If the user exists and is active, a new token will be generated and any existing tokens will be invalidated..
+    Allows a user to request a password reset token.
+    If the user exists and is active, a new token will be generated, and any existing tokens will be invalidated.
     - **Privacy**: Returns a success message even if the user doesn't exist.
     - **Restriction**: Works only for active accounts.
     """
@@ -752,7 +753,7 @@ async def refresh_access_token(
     refresh_token_record = result.scalars().first()
     if not refresh_token_record:
         logger.warning(
-            f"Refresh failed: Token not found in database (possibly revoked or reused)"
+            "Refresh failed: Token not found in database (possibly revoked or reused)"
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

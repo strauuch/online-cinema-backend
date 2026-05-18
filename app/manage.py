@@ -28,7 +28,6 @@ async def main():
         logger.critical(
             f"Failed to execute command '{cmd_name}': {str(e)}", exc_info=True
         )
-        import traceback
 
 
 if __name__ == "__main__":

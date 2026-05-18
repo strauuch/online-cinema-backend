@@ -35,18 +35,12 @@ def s3_storage_fake():
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_test_database():
-    # async with test_engine.begin() as conn:
-    #     await conn.run_sync(Base.metadata.create_all)
-    # yield
-    # async with test_engine.begin() as conn:
-    #     await conn.run_sync(Base.metadata.drop_all)
-    # await test_engine.dispose()
-    # if os.path.exists("test_accounts.db"):
-    #     os.remove("test_accounts.db")
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
     await test_engine.dispose()
+    if os.path.exists("test_accounts.db"):
+        os.remove("test_accounts.db")
 
 
 @pytest_asyncio.fixture(scope="function")

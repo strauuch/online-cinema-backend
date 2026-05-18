@@ -4,7 +4,7 @@ import stripe
 from datetime import date, datetime, time
 from typing import Optional
 from fastapi import APIRouter, Depends, status, HTTPException, Request, Query
-from sqlalchemy import select, func, and_, cast, Date
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 

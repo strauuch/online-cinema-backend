@@ -1150,9 +1150,9 @@ async def test_admin_list_users_forbidden_for_regular_user(authenticated_client)
 
 @pytest.mark.asyncio
 async def test_admin_list_users_combined_filters(admin_client, user_factory):
-    unique_email1 = f"{uuid.uuid4()}@example.com"
-    unique_email2 = f"{uuid.uuid4()}@example.com"
-    unique_email3 = f"{uuid.uuid4()}@example.com"
+    unique_email1 = f"john.doe.{uuid.uuid4().hex}@example.com"
+    unique_email2 = f"jane.doe.{uuid.uuid4().hex}@example.com"
+    unique_email3 = f"inactive.{uuid.uuid4().hex}@example.com"
     await user_factory.create_active_user(email=unique_email1)
     await user_factory.create_active_user(email=unique_email2)
     inactive = await user_factory.create_user(is_active=False, email=unique_email3)

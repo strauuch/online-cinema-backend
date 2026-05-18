@@ -26,4 +26,4 @@ jobs:
       - name: Deploy on EC2
         run: |
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
-            'bash ~/online-cinema/commands/deploy.sh'
+            'bash ~/src/online-cinema/commands/deploy.sh'

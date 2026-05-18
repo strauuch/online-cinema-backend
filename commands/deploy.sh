@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-cd ~/online-cinema
+cd ~/src/online-cinema-backend
 
 git pull origin main
 

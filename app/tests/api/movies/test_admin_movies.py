@@ -1443,8 +1443,7 @@ async def test_create_movie_internal_error_flush(
 @pytest.mark.asyncio
 async def test_list_deleted_movies_success(admin_client, movie_factory, db_session):
     unique_name = f"Movie_{uuid.uuid4().hex[:8]}"
-    unique_name1 = f"Movie_{uuid.uuid4().hex[:8]}"
-    deleted_movie = await movie_factory.create_movie(name=unique_name1)
+    deleted_movie = await movie_factory.create_movie(name=unique_name)
 
     deleted_movie.is_deleted = True
     deleted_movie.deleted_at = datetime.utcnow()
@@ -1459,7 +1458,7 @@ async def test_list_deleted_movies_success(admin_client, movie_factory, db_sessi
     assert data["total"] >= 1
 
     deleted_names = [item["name"] for item in data["items"]]
-    assert unique_name1 in deleted_names
+    assert unique_name in deleted_names
     assert any(item["is_deleted"] is True for item in data["items"])
 
 
@@ -1567,7 +1566,6 @@ async def test_update_movie_success(admin_client, movie_factory, db_session):
 @pytest.mark.asyncio
 async def test_update_movie_relationships(admin_client, movie_factory, db_session):
     unique_genre = f"Genre_{uuid.uuid4().hex[:6]}"
-    unique_star = f"Star_{uuid.uuid4().hex[:6]}"
     unique_genre1 = f"Genre_{uuid.uuid4().hex[:6]}"
     movie = await movie_factory.create_movie()
 

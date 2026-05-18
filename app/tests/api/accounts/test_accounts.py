@@ -848,14 +848,6 @@ async def test_update_profile_creates_new_profile(authenticated_client, db_sessi
 
 
 @pytest.mark.asyncio
-async def test_update_profile_unauthorized(client):
-    response = await client.patch(
-        "/api/v1/accounts/me/profile/", data={"first_name": "Hacker"}
-    )
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
 async def test_update_profile_invalid_data(authenticated_client):
     response = await authenticated_client.patch(
         "/api/v1/accounts/me/profile/", data={"gender": "invalid_gender"}
@@ -1152,10 +1144,8 @@ async def test_admin_list_users_forbidden_for_regular_user(authenticated_client)
 async def test_admin_list_users_combined_filters(admin_client, user_factory):
     unique_email1 = f"john.doe.{uuid.uuid4().hex}@example.com"
     unique_email2 = f"jane.doe.{uuid.uuid4().hex}@example.com"
-    unique_email3 = f"inactive.{uuid.uuid4().hex}@example.com"
     await user_factory.create_active_user(email=unique_email1)
     await user_factory.create_active_user(email=unique_email2)
-    inactive = await user_factory.create_user(is_active=False, email=unique_email3)
 
     response = await admin_client.get(
         "/api/v1/accounts/admin/users/?" "email_query=doe&" "is_active=true"

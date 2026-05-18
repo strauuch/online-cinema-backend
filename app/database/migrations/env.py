@@ -1,23 +1,20 @@
 import sys
+
 from os import path
-
-sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
-
 from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
 
 from alembic import context
 
-from app.database.models import accounts  # noqa: F401
-from app.database.models import carts  # noqa: F401
-from app.database.models import enums  # noqa: F401
-from app.database.models import movies  # noqa: F401
-from app.database.models import orders  # noqa: F401
-from app.database.models import payments  # noqa: F401
+from app.database.models import accounts
+from app.database.models import carts
+from app.database.models import enums
+from app.database.models import movies
+from app.database.models import orders
+from app.database.models import payments
 from app.database.models.base import Base
 from app.database.engine import sync_postgresql_engine
+
+sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

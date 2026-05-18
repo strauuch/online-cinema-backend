@@ -298,7 +298,7 @@ async def cancel_order(
                     )
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="You have an active payment session open. Please complete or expire it before canceling.",
+                        detail="You have an active payment session open. Please complete or expire it before canceling",
                     )
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error during cancellation check: {e}")

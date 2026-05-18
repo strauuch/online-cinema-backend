@@ -1,4 +1,3 @@
-from fastapi.openapi.models import Example
 from pydantic import BaseModel, ConfigDict, Field
 from decimal import Decimal
 from typing import List

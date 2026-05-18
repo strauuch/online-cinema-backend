@@ -467,9 +467,6 @@ async def test_get_notifications_only_own(
     response = await authenticated_client.get(f"{BASE}/notifications/")
 
     assert response.status_code == 200
-    token = authenticated_client.headers["Authorization"].split(" ")[1]
-    payload = jwt_manager.decode_access_token(token)
-    user_id = payload["user_id"]
     for notif in response.json():
         assert "id" in notif
 

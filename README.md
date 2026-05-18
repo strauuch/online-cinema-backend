@@ -95,3 +95,121 @@ Requires authentication with Admin or Moderator role.
 ```bash
 docker compose exec app pytest --cov=app
 ```
+
+## Project Directory Structure
+```shell
+.
+├── .dockerignore
+├── .env
+├── .env.sample
+├── .flake8
+├── .gitignore
+├── Dockerfile
+├── README.md
+├── alembic.ini
+├── celerybeat-schedule
+├── docker-compose.yml
+├── poetry.lock
+├── pyproject.toml
+├── .github/
+│   └── workflows/
+│       ├── cd.yml
+│       └── ci.yml
+├── commands/
+│   ├── deploy.sh
+│   └── entrypoint.sh
+└── app/
+    ├── main.py
+    ├── manage.py
+    ├── core/
+    │   ├── __init__.py
+    │   ├── config.py
+    │   └── dependencies.py
+    ├── database/
+    │   ├── __init__.py
+    │   ├── engine.py
+    │   ├── migrations/
+    │   │   ├── README
+    │   │   ├── env.py
+    │   │   ├── script.py.mako
+    │   │   ├── __init__.py
+    │   │   └── versions/
+    │   ├── models/
+    │   │   ├── __init__.py
+    │   │   ├── accounts.py
+    │   │   ├── base.py
+    │   │   ├── carts.py
+    │   │   ├── enums.py
+    │   │   ├── movies.py
+    │   │   ├── orders.py
+    │   │   └── payments.py
+    │   └── validators/
+    │       ├── __init__.py
+    │       ├── accounts_validators.py
+    │       └── movies_validators.py
+    ├── exceptions/
+    │   ├── __init__.py
+    │   ├── email.py
+    │   ├── security.py
+    │   └── storage.py
+    ├── notifications/
+    │   ├── __init__.py
+    │   ├── emails.py
+    │   ├── interfaces.py
+    │   └── templates/
+    ├── routes/
+    │   ├── __init__.py
+    │   ├── accounts.py
+    │   ├── carts.py
+    │   ├── movies_admin.py
+    │   ├── movies_user.py
+    │   ├── orders.py
+    │   └── payments.py
+    ├── schemas/
+    │   ├── __init__.py
+    │   ├── accounts.py
+    │   ├── carts.py
+    │   ├── movies.py
+    │   ├── orders.py
+    │   ├── pagination.py
+    │   └── payments.py
+    ├── scripts/
+    │   ├── __init__.py
+    │   ├── base.py
+    │   └── seed_users.py
+    ├── security/
+    │   ├── __init__.py
+    │   ├── interfaces.py
+    │   ├── passwords.py
+    │   ├── token_manager.py
+    │   └── utils.py
+    ├── storages/
+    │   ├── __init__.py
+    │   ├── interfaces.py
+    │   └── s3.py
+    ├── tests/
+    │   ├── __init__.py
+    │   ├── conftest.py
+    │   ├── test_security.py
+    │   ├── test_validators.py
+    │   ├── doubles/
+    │   ├── factories/
+    │   └── api/
+    │       ├── __init__.py
+    │       ├── accounts/
+    │       │   ├── __init__.py
+    │       │   └── test_accounts.py
+    │       ├── movies/
+    │       │   ├── __init__.py
+    │       │   ├── test_admin_movies.py
+    │       │   └── test_user_movies.py
+    │       └── shop/
+    │           ├── __init__.py
+    │           ├── test_carts.py
+    │           ├── test_orders.py
+    │           └── test_payments.py
+    └── worker/
+        ├── __init__.py
+        ├── celery_app.py
+        └── tasks.py
+```

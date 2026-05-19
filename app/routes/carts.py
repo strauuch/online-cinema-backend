@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
     summary="Get User Cart",
     status_code=status.HTTP_200_OK,
     responses={
-        401: {"description": "Unauthorized - User not logged in."},
-        500: {"description": "Internal Server Error - Database issues."},
+        401: {"description": "Unauthorized - User not logged in"},
+        500: {"description": "Internal Server Error - Database issues"},
     },
 )
 async def get_cart(

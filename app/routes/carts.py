@@ -42,7 +42,7 @@ async def get_cart(
 ) -> CartResponseSchema:
     """
     Retrieve the current authenticated user's shopping cart.
-    - **Content**: Detailed list of movies (name, price, year, and genres).
+    - **Content**: Detailed list of movies (name, price, year genres).
     - **Calculations**: Automatically computes the total price of all items.
     """
     current_user_id = current_user.id

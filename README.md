@@ -96,8 +96,21 @@ Requires authentication with Admin or Moderator role.
 docker compose exec app pytest --cov=app
 ```
 
+## Live Demo
+
+The API is deployed on AWS EC2 and available at:
+
+| Interface | URL |
+|---|---|
+| Swagger UI | http://3.123.207.169:8000/docs |
+| Redoc | http://3.123.207.169:8000/redoc |
+
+> Authentication with Admin or Moderator credentials required to access the docs.
+
+---
+
 ## Project Directory Structure
-```shell
+```bash
 .
 ├── .dockerignore
 ├── .env

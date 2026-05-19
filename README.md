@@ -1,6 +1,6 @@
 # Online Cinema API
 
-REST API for a digital cinema platform — user accounts, movie catalog, cart, orders, and Stripe payments.
+REST API for a digital cinema platform — user accounts, movie catalogue, cart, orders, and Stripe payments.
 
 ---
 

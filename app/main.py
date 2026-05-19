@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Online Cinema",
-    description="REST API for a digital cinema platform — user accounts, movie catalog, cart, orders, and payments.",
+    description="REST API for a digital cinema platform — user accounts, movie catalogue, cart, orders, and payments.",
 )
 
 api_version_prefix = "/api/v1"
